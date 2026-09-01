@@ -17,7 +17,7 @@ Vivi is NOT
 - A language that locks you into itself, you can interop.
 - Free of opinions, but it is also a lang that doesn't get in your way.
 
-Currently only working on linux atm. Run ``./build.sh`` to build, ``./build/vivi .`` to run main.vivi
+Currently only working on linux atm and not finished (alpha). Run ``./build.sh`` to build, ``./build/vivi .`` to run main.vivi
 
 ---
 
