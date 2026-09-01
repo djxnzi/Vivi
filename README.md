@@ -17,9 +17,7 @@ Vivi is NOT
 - A language that locks you into itself, you can interop.
 - Free of opinions, but it is also a lang that doesn't get in your way.
 
-Currently only the lexer, ast and parser are implemented. Run vivi with ``./build/vivi . --ast`` after compiling.
-
-Please see the [spec](https://github.com/maidnaut/Vivi/blob/main/docs/spec.txt) for a full breakdown.
+Currently only working on linux atm. Run ``./build.sh`` to build, ``./build/vivi .`` to run main.vivi
 
 ---
 
