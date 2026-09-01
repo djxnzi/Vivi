@@ -1,0 +1,231 @@
+index_of := fn (string str, string substr, i32 from := 0) -> i32 {
+    if (substr.len == 0) return -1
+    if (from < 0) from = 0
+
+    for (i := from; i <= str.len - substr.len; i++) {
+        match := true
+        for (j := 0; j < substr.len; j++) {
+            if (str.char_at(i + j) != substr.char_at(j)) {
+                match = false
+                break
+            }
+        }
+        if match return i
+    }
+
+    return -1
+}
+
+is_digit := fn (rune c) -> bool {
+    n := i32(c)
+    return n >= 48 && n <= 57
+}
+
+has_prefix := fn (string str, string prefix) -> bool {
+    if (prefix.len > str.len) {
+        return false
+    }
+
+    for (i := 0; i < prefix.len; i++) {
+        if (str.char_at(i) != prefix.char_at(i)) {
+            return false
+        }
+    }
+
+    return true
+}
+
+has_suffix := fn (string str, string suffix) -> bool {
+    if (suffix.len > str.len) {
+        return false
+    }
+
+    offset := str.len - suffix.len
+    for (i in 0..suffix.len - 1) {
+        if str.char_at(offset + i) != suffix.char_at(i) return false
+    }
+
+    return true
+}
+
+contains := fn (string str, string substr) -> bool {
+    if (substr.len == 0) return true
+    if (substr.len > str.len) return false
+
+    for (i := 0; i <= str.len - substr.len; i++) {
+        match := true
+        for (j := 0; j < substr.len; j++) {
+            if (str.char_at(i + j) != substr.char_at(j)) {
+                match = false
+                break
+            }
+        }
+
+        if match return true
+    }
+
+    return false
+}
+
+substring := fn (string str, i32 start := null, i32 end := null) {
+
+    arr := []
+
+    for (i := 0; i < str.len; i++) {
+        arr.push(str.char_at(i));
+    }
+
+    start   = (start == null || start < 0) ? 0 : start
+    end     = (end == null || end > str.len) ? str.len : end
+    start   = start < str.len ? start : str.len
+
+    if (start > end) {
+        [start, end] = [end, start]
+    }
+
+    result := ""
+
+    for (i := start; i < end; i++) {
+        result = result ~ str.char_at(i)
+    }
+
+    return result
+}
+
+split := fn (string str, string delimiter := null) -> array {
+    if (str.len() == 0) panic("Cannot split an empty string!")
+
+    start   := 0
+    result  := []
+
+    if (delimiter == null || delimiter.len == 0) {
+        for (i := 0; i < str.len(); i++) {
+            result.push(str.char_at(i))
+        }
+    } else {
+        index := index_of(str, delimiter, start)
+        while (index != -1) {
+            result.push(substring(str, start, index))
+            start = index + delimiter.len
+            index = index_of(str, delimiter, start)
+        }
+        result.push(substring(str, start))
+    }
+
+    return result
+}
+
+join := fn (string str1, string str2) -> string {
+    // Redundant, for js devs
+    return str1 ~ str2
+}
+
+replace := fn (string str, string target, string replacement) -> string {
+    if replace == null return str
+
+    for (i := 0; i <= str.len - target.len; i++) {
+        if (substring(str, i, i + target.len) == target) {
+            return substring(str, 0, i) ~ replacement ~ substring(str, i + target.len, str.len)
+        }
+    }
+
+    return str
+}
+
+trim := fn (string str) -> string {
+    whitespace  := [" ", "\t", "\n", "\r"]
+
+    start := 0
+    while (start < str.len && str.char_at(start) in whitespace) {
+        start++
+    }
+
+    end := str.len
+    while (end > start && str.char_at(end - 1) in whitespace) {
+        end--
+    }
+
+    return substring(str, start, end)
+}
+
+to_upper := fn (string str) -> string {
+    out := ""
+    for i := 0; i < str.len; i++ {
+        c := i32(str.char_at(i))
+        if c >= 97 && c <= 122 {
+            c = c - 32
+        }
+        out = out ~ rune(c)
+    }
+    return out
+}
+
+to_lower := fn (string str) -> string {
+    out := ""
+    for i := 0; i < str.len; i++ {
+        c := i32(str.char_at(i))
+        if c >= 65 && c <= 90 {
+            c = c + 32
+        }
+        out = out ~ rune(c)
+    }
+    return out
+}
+
+reverse := fn (string str) -> string {
+    out := ""
+    for (i := str.len - 1; i >= 0; i--) {
+        out = out ~ str.char_at(i)
+    }
+    return out
+}
+
+to_pascal_case := fn (string str) -> string {
+    out := ""
+    new_word := true
+    for (i := 0; i < str.len; i++) {
+        c := i32(str.char_at(i))
+        if (c == 32) {
+            new_word = true
+        } else {
+            if (new_word && c >= 97 && c <= 122) c = c - 32
+            if (!new_word && c >= 65 && c <= 90) c = c + 32
+            out = out ~ rune(c)
+            new_word = false
+        }
+    }
+    return out
+}
+
+to_camel_case := fn (string str) -> string {
+    out := ""
+    new_word := false
+    started := false
+    for (i := 0; i < str.len; i++) {
+        c := i32(str.char_at(i))
+        if (c == 32) {
+            new_word = started
+        } else {
+            if (new_word && c >= 97 && c <= 122) c = c - 32
+            if (!new_word && c >= 65 && c <= 90) c = c + 32
+            out = out ~ rune(c)
+            new_word = false
+            started = true
+        }
+    }
+    return out
+}
+
+to_snake_case := fn (string str) -> string {
+    out := ""
+    for (i := 0; i < str.len; i++) {
+        c := i32(str.char_at(i))
+        if (c == 32) {
+            out = out ~ "_"
+        } else {
+            if (c >= 65 && c <= 90) c = c + 32
+            out = out ~ rune(c)
+        }
+    }
+    return out
+}

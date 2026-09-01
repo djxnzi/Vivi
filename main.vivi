@@ -1,0 +1,270 @@
+#import "core:strings" as _
+
+fn run :: () {
+
+    println("\n")
+
+    println("This is a rough test to show some very basic syntax. Use './build/vivi .' to run.")
+    println("Expect a lot of broken stuff right now.\n")
+    println("Not a complete example, see libraries for more.\n")
+
+    hello := "Hello, Black Mage!"
+    println(hello)
+    println("Length:", hello.len(), "\nChar at 0:", hello.char_at(0), "\nHash:", hash(hello))
+
+    print("\n")
+
+    // Defer
+    fn cleanup :: () { println("This was deferred \n") }
+    defer cleanup()
+
+    /****************************/
+    // Declarations
+    immutable_var :: 0
+    mutable_var := 0
+    mutable_var = 1
+
+    i32 bare_declaration
+    u32 {
+        mass_decl_a := 1
+        mass_decl_b := 2
+    }
+
+    local lx := 1
+    static i32 sx := 0
+
+    // Types
+    println("Types aren't fully working yet.")
+    println("bool: {bool(100000000)}")
+    println("i8: {i8(100000000)}")
+    println("i16: {i16(100000000)}")
+    println("i32: {i32(100000000)}")
+    println("i64: {i64(100000000)}")
+    println("u8: {u8(100000000)}")
+    println("u16: {u16(100000000)}")
+    println("u32: {u32(100000000)}")
+    println("u64: {u64(100000000)}")
+    println("f32: {f32(100000.10)}")
+    println("f64: {f64(100000.10)}")
+    println("rune: {rune('a')}")
+    println("string: {string(100000000)}")
+
+    print("\n")
+
+    // Arrays
+    println("Arrays")
+    t := [1, 2, 3]
+    t2 := ["key": [1,2,3], 4, 5]
+    println(t[0], t2["key"], t2["key", 0])
+    println(t2["key"][1])
+    t[0] = 9
+    t2[0] += 1
+    t[10] = 5
+    t2["new"] = 1
+    t["a"] = 1
+    println(t["a"], t['a'])
+    t.push(6); t.pop(); t.add(1, 99); t.take(0); t.sort(); t.len()
+    t.empty()
+    i32[10] sized
+    i32[10] filled := 0
+    i32[10] copied := [1,2,3]
+    
+    print("\n")
+
+    // Structs
+    struct Point {
+        i32 x: 0,
+        i32 y: 0
+    }
+    p := Point(1, 2)
+    println("Dump a raw struct into a print:", p)
+
+    px, py := p
+    println("px: {px}, py: {py}")
+
+    print("\n")
+
+    // Operators
+    println("1 == 1, 1 != 2, 1 in [1,2,3], true and false, true or false, !true")
+    println(1 == 1, 1 != 2, 1 in [1,2,3], true and false, true or false, !true, "\n")
+
+    // Pointers
+    println("Pointers")
+    px2 := 5
+    i32 *ptr := &px2
+    ptr* = 6
+    ptr* += 4
+    z := 1
+    ptr = &z
+    println(ptr*)
+    Point *vpp := &p
+    println(vpp.x)
+    vpp.x = 42
+    q := ptr
+    println(ptr == q)
+
+    print("\n")
+
+    // Enums
+    enum Color { Red, Green, Blue }
+    println("Enums - Red: {Color.Red}, Green: {Color.Green}, Blue: {Color.Blue}")
+
+    print("\n")
+
+    // Functions
+
+    fn mult :: (a, b) -> i32 {
+        return a * b
+    }
+    
+    mutable_fn := fn (a) {
+        return a
+    }
+
+    fn () {
+        println("Anonymous function")
+    }
+
+    fn pub :: () {
+        priv := fn () {
+            return println("Private functions work the same way as they do in structs")
+        }
+        return priv()
+    }
+
+    fn fn_defaults :: (a := 1, f32 b := 2.0) { }
+    fn fn_union_return :: () -> i32 | string { return 1 }
+    fn fn_multi_return :: () -> i32, string { return 1, "a" }
+    fn variadic_fn :: (...) { println(argc, argv) }
+    fn typed_variadic_fn :: (i32 ...) { println(argc) }
+
+    println("Mult:", mult(1, 2))
+    pub()
+    // pub().priv() Should be able to do this, broken right now
+
+    print("\n")
+
+    // Lambdas
+    println("Lambdas")
+    handlers := [fn(){return 1}, fn(){return 2}]
+    println(handlers[0]())
+    dispatch := {log: fn(msg){println(msg)}}
+    dispatch.log("hi")
+    lazy := if true { fn(m){println(m)} } else { fn(m){} }
+    lazy("cond-fn")
+
+    print("\n")
+
+    // Bitwise
+    println("Bitwise: 5 & 3, 5 ^ 3, ~5, 1 << 2, 8 >> 2, 5 | 2")
+    println(5 & 3, 5 ^ 3, ~5, 1 << 2, 8 >> 2, 5 | 2)
+
+    print("\n")
+
+    // Control flow
+    println("Control Flow")
+    n := 10
+    if n < 0 { }
+    msg := if n > 50 {"big"} else {"small"}
+    while n > 5 { n -= 1 }
+    for i := 0; i < 3; i++ { }
+    for 0..10 { }
+    for i, val in t { }
+    for key, val in p { }
+
+    // ==== Switch ====
+    switch n {
+        1: println("one")
+        0..3: println("range")
+        default: println("other")
+    }
+    switch n {
+        i32: println("is int")
+        string: println("is str")
+    }
+    switch n in t {
+        1: println("member")
+        default: println("nope")
+    }
+
+    // Try/Catch
+    a := 0
+    try { a += 1 } catch (err) { println(err) }
+
+    print("\n")
+
+    // Library examples
+
+    r := "A"
+    s := "String"
+
+    println("Rune: {r}")
+    println("String: {s}")
+
+    print("\n")
+
+    println("Rune is digit?", is_digit(rune(r)))
+    println("String has prefix S?", has_prefix(s, "S"))
+    println("String has suffix n?", has_prefix(s, "n"))
+    println("String contains \"ring\"?", contains(s, "ring"))
+    
+    print("\n")
+
+    println("Split string")
+    split_str := split(s)
+    for i in split_str {
+        print(i ~ ",")
+    }
+    
+    println("\n")
+
+    temp := replace(s, "r", "")
+    new_s := replace(temp, "t", "b")
+
+    println("String replacement:", new_s)
+    println("to_upper()", to_upper(new_s))
+    println("to_lower()", to_lower(new_s))
+    println("reverse()", reverse(new_s))
+    println("to_pascal_case()", to_pascal_case(new_s ~ " " ~ s))
+    println("to_camel_case()", to_camel_case(new_s ~ " " ~ s))
+    println("to_snake_case()", to_snake_case(new_s ~ " " ~ s))
+
+    print("\n")
+
+    hash_me := "banana"
+    println("Hash {hash_me}")
+    print("Output: {hash(hash_me)}")
+
+    println("\n")
+
+    int cast_me := 100
+    if (cast_me == i32) println("Current type is i32")
+
+    cast(cast_me, string)
+
+    if (cast_me == string) println("Value cast to string")
+
+    print("\n")
+
+    // Fizzbuzz
+    println("Fizzbuzz")
+    for i in 1..101 {
+        if i % 3 == 0 and i % 5 == 0 {
+            print("FizzBuzz")
+        } else if i % 3 == 0 {
+            print("Fizz")
+        } else if i % 5 == 0 {
+            print("Buzz")
+        } else {
+            print(i)
+        }
+    }
+
+    println("\n")
+
+}
+
+fn main :: (argc, argv) {
+    print("argv0:", argv[0])
+    run()
+}

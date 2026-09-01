@@ -1,0 +1,234 @@
+#primitive _write       :: (i32 fd, string data) -> i32
+#primitive _exit        :: (i32 code)
+#primitive _traceback   :: () -> string
+#primitive _clock       :: () -> f64
+#primitive _rand        :: () -> i32
+#primitive _len         :: (a) -> u32
+#primitive _cast        :: (a, string t) -> value
+#primitive _set         :: (a, u32 i, item v)
+#primitive _get         :: (a, u32 i) -> item
+#primitive _trunc       :: (a, u32 n)
+
+
+
+// Builtins
+
+print := fn (...) {
+    _write(1, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(1, " " ~ string(argv[i]))
+    }
+}
+println := fn (...) {
+    _write(1, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(1, " " ~ string(argv[i]))
+    }
+
+    _write(1, "\n")
+}
+
+exit := fn (i32 code := 0) {
+    code = code % 256
+    exit_codes := [0, 1, 2, 127, 134]
+    if code in exit_codes {
+        _exit(code);
+    } else {
+        println("Program exited with abnormal exit code {code}")
+        _exit(code);
+    }
+}
+panic := fn (string str) {
+    /* Exit codes:
+        0: ok
+        1: runtime error
+        2: parse error
+        127: file not found
+        134: panic
+    */
+    print("panic(): {str}")
+    print(_traceback()); // Points to itself, wrong
+    exit(134);
+}
+
+timestamp := fn () {
+    return _clock()
+}
+
+rand := fn () {
+    return _rand()
+}
+
+hash := fn (string v) -> i32 {
+    h := 0
+    n := _len(v)
+    i := 0
+    while i < n {
+        h = ((h << 5) ^ (h >> 2)) ^ _get(v, i)
+        i += 1
+    }
+    return h
+}
+
+// Methods
+
+#method len := fn () {
+    return _len(self)
+}
+
+#method fn char_at :: (i) {
+    if i < 0 or i >= _len(self) {
+        panic("char_at() index out of range")
+    }
+    return _cast(_get(self, i), "rune")
+}
+
+#method fn push :: (v) {
+    _set(self, _len(self), v)
+}
+
+#method fn pop :: () {
+    n := _len(self)
+    if n == 0 { panic("Cannot pop from an empty array") }
+    v := _get(self, n - 1)
+    _trunc(self, n - 1)
+    return v
+}
+
+#method fn empty :: () {
+    _trunc(self, 0)
+}
+
+#method fn add :: (i, v) {
+    n := _len(self)
+    j := n
+    while j > i {
+        _set(self, j, _get(self, j - 1))
+        j -= 1
+    }
+    _set(self, i, v)
+}
+
+#method fn take :: (i) {
+    n := _len(self)
+    if i < 0 or i >= n { _panic("take() index out of range") }
+    v := _get(self, i)
+    j := i
+    while j < n - 1 {
+        _set(self, j, _get(self, j + 1))
+        j += 1
+    }
+    _trunc(self, n - 1)
+    return v
+}
+
+_is_num := fn (v) {
+    return v == i32 or v == f32
+}
+
+_lower_at := fn (s, i) {
+    c := _get(s, i)
+    if c >= 65 and c <= 90 { return c + 32 }
+    return c
+}
+
+_text_greater := fn (l, r) {
+    ls := _cast(l, "string")
+    rs := _cast(r, "string")
+    ln := _len(ls)
+    rn := _len(rs)
+    n := ln
+    if rn < n { n = rn }
+    k := 0
+    while k < n {
+        lc := _lower_at(ls, k)
+        rc := _lower_at(rs, k)
+        if lc != rc { return lc > rc }
+        k += 1
+    }
+    return ln > rn
+}
+
+#method fn sort :: () {
+    n := _len(self)
+    c := 0
+    while c < n {
+        e := _get(self, c)
+        if !(_is_num(e) or e == string or e == rune) {
+            panic("sort() can't order null, bool, array, struct or function values")
+        }
+        c += 1
+    }
+
+    i := 1
+    while i < n {
+        vi := _get(self, i)
+        j := i - 1
+        while j >= 0 {
+            lv := _get(self, j)
+            greater := false
+            if _is_num(lv) and _is_num(vi) {
+                greater = lv > vi
+            } else {
+                greater = _text_greater(lv, vi)
+            }
+            if !greater { break }
+            _set(self, j + 1, lv)
+            j -= 1
+        }
+        _set(self, j + 1, vi)
+        i += 1
+    }
+}
+
+
+
+// Casts
+
+bool := fn (v) -> bool {
+    return _cast(v, "bool")
+}
+i8 := fn (v) -> i8 {
+    return _cast(v, "i8")
+}
+i16 := fn (v) -> i16 {
+    return _cast(v, "i16")
+}
+i32 := fn (v) -> i32 {
+    return _cast(v, "i32")
+}
+i64 := fn (v) -> i64 {
+    return _cast(v, "i64")
+}
+u8 := fn (v) -> u8 {
+    return _cast(v, "u8")
+}
+u16 := fn (v) -> u16 {
+    return _cast(v, "u16")
+}
+u32 := fn (v) -> u32 {
+    return _cast(v, "u32")
+}
+u64 := fn (v) -> u64 {
+    return _cast(v, "u64")
+}
+f32 := fn (v) -> f32 {
+    return _cast(v, "f32")
+}
+f64 := fn (v) -> f64 {
+    return _cast(v, "f64")
+}
+rune := fn (v) -> rune {
+    return _cast(v, "rune")
+}
+string := fn (v) -> string {
+    return _cast(v, "string")
+}
+// Explicit cast
+cast := fn (*v, type) {
+    v* = type(v*)
+    return v*
+}
+
+int := i32
+float := f32

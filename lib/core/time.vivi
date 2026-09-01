@@ -1,0 +1,151 @@
+#import "build/lib/core/_base.vivi"
+
+program_start :: timestamp()
+last_time := program_start
+
+now := fn -> i32 {
+    return i32(timestamp())
+}
+
+dt := fn (c := now()) -> i32 {
+    dt := (c - last_time) * 1000
+    last_time = c
+    return dt
+}
+
+dateTime := fn (c := i64(now())) -> array {
+    u32 s       := c % 86400
+    u32 seconds := s % 60
+    u32 minutes := (s % 3600) / 60
+    u32 hours   := s / 3600
+    u32 days    := c / 86400
+    year        := 1970
+    is_leap     := 0
+
+    while (true) {
+        is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+        days_in_year := is_leap ? 366 : 365
+        if (days >= days_in_year) {
+            days -= days_in_year
+            year++
+        } else {
+            break
+        }
+    }
+
+    is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    days_in_months := is_leap
+        ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    month := 0
+    while (days >= days_in_months[month]) {
+        days -= days_in_months[month]
+        month++
+    }
+
+    month += 1
+    day := days + 1
+
+    return [day, month, year]
+}
+
+getTime := fn (c := i64(now()), base_offset := i64(0), zulu := true) -> array {
+    day   := dateTime()[0]
+    month := dateTime()[1]
+    year  := dateTime()[2]
+
+    days_to_mar1 := 0
+    y := 1970
+    while (y < year) {
+        leap_y := (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+        days_to_mar1 = days_to_mar1 + (leap_y ? 366 : 365)
+        y = y + 1
+    }
+    is_leap_curr := (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    days_to_mar1 = days_to_mar1 + 31 + (is_leap_curr ? 29 : 28)
+
+    dow_mar1 := (4 + days_to_mar1) % 7
+    first_sun_mar := dow_mar1 == 0 ? 1 : (7 - dow_mar1 + 1)
+    second_sun_mar := first_sun_mar + 7
+
+    days_to_nov1 := days_to_mar1 + 245
+    dow_nov1 := (4 + days_to_nov1) % 7
+    first_sun_nov := dow_nov1 == 0 ? 1 : (7 - dow_nov1 + 1)
+
+    in_dst := false
+    if (month > 3 && month < 11) {
+        in_dst = true
+    } else if (month == 3 && day >= second_sun_mar) {
+        in_dst = true
+    } else if (month == 11 && day < first_sun_nov) {
+        in_dst = true
+    }
+
+    dst_offset := in_dst ? 3600 : 0
+
+    local_secs := (c + (base_offset * 3600) + dst_offset) % 86400
+    if local_secs < 0 local_secs = local_secs + 86400
+
+    u32 s           := u32(local_secs)
+    u32 hours       := s / 3600
+    u32 minutes     := (s % 3600) / 60
+    u32 seconds     := s % 60
+    string meridiem := ""
+
+    if (zulu) {
+        hours = hours      < 10 ? "0" : ""
+        minutes = minutes  < 10 ? "0" : ""
+        seconds = seconds  < 10 ? "0" : ""
+    } else {
+        meridiem = hours < 12 ? "AM" : "PM"
+
+        hours = hours == 0  ? 12 : hours > 12   ? hours - 12 : hours
+    }
+
+    return [hours, minutes, seconds, meridiem]
+}
+
+// Tomohiko Sakamoto Algorithm
+getDay := fn (i32 d := dateTime()[0], i32 m := dateTime()[1], i32 y := dateTime()[2]) -> string {
+    t := [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+    
+    if (m < 3) y -= 1
+    
+    day := ((y + y / 4 - y / 100 + y / 400 + t[m - 1] + d) % 7)
+
+    switch day {
+        0: return "Sunday"
+        1: return "Monday"
+        2: return "Tuesday"
+        3: return "Wednesday"
+        4: return "Thursday"
+        5: return "Friday"
+        6: return "Saturday"
+    }
+}
+
+getMonth := fn (m := dateTime()[1]) -> string {
+    switch m {
+        0: return "January"
+        1: return "February"
+        2: return "March"
+        3: return "April"
+        4: return "May"
+        5: return "June"
+        6: return "July"
+        7: return "August"
+        8: return "September"
+        9: return "October"
+        10: return "November"
+        11: return "December"
+    }
+}
+
+getYear := fn (i32 y := dateTime()[2]) -> i32 {
+    return y
+}
+
+formatDate := fn (string d := getDay(), string m := getMonth(), i32 y := getYear()) -> string {
+    return "{d}, {m} {y}"
+}
