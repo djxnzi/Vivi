@@ -27,7 +27,7 @@ enum AstType {
     PROCTIME_BLOCK,
 
     // DIRECTIVES
-    IMPORT, PRIMITIVE, METHOD,
+    IMPORT, PRIMITIVE, METHOD, WORD,
 
     // Root
     PROGRAM
@@ -35,7 +35,7 @@ enum AstType {
 
 enum ValueType {
     Null, Bool, Int, Float, Str, Rune,
-    Array, Struct, Fn, Frame
+    Array, Struct, Fn, Frame, Phrase
 };
 
 struct AstNode {
@@ -242,9 +242,18 @@ struct AstNode {
             struct AstNode **params;
             int param_count;
             AstNode *return_type;
+            AstNode *body;
+            void *fn_obj;
             void *resolved;
             const char *file;
         } primitive;
+        struct { // Words are nre grammar introduced in vivi source
+            const char *name;
+            int len;
+            struct AstNode **args;
+            int arg_count;
+            struct AstNode *block;
+        } word;
         struct { // #proctime
             struct AstNode **stmts;
             int stmt_count;
@@ -337,6 +346,11 @@ struct ObjFn {
     bool is_native;
     const char *native_name;
     int native_name_len;
+};
+
+struct ObjPhrase {
+    Obj obj;
+    AstNode *node;
 };
 
 struct ObjFrame {

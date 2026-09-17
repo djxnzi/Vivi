@@ -336,6 +336,11 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
                 register_struct_decl(stmt);
             break;
 
+        case PRIMITIVE:
+            if (!checking && stmt->as.primitive.body)
+                pt_add_node(stmt->as.primitive.name, stmt->as.primitive.len, stmt, nullptr);
+            break;
+
         case PROCTIME_BLOCK:
             break;
 

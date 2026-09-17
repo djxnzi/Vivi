@@ -115,6 +115,38 @@ static bool at_type_annotation(Parser *p) {
     return false;
 }
 
+static bool is_type_void(Token t) {
+    return t.type == TOK_IDENT && t.len == 4 && strncmp(t.start, "void", 4) == 0;
+}
+
+static bool check_fn(Parser *p) {
+    Lexer tmp = *p->lx;
+    tmp.cur = p->current.start;
+    int d = 0;
+    Token t = next_token(&tmp);
+
+    if (t.type == TOK_LBRACKET) {
+        do { if (t.type == TOK_LBRACKET) d++; else if (t.type == TOK_RBRACKET) d--;
+             t = next_token(&tmp); } while (d > 0 && t.type != TOK_EOF);
+    } else if (is_type_keyword(t.type) || is_type_name_token(t) || is_type_void(t)) {
+        t = next_token(&tmp);
+        if (t.type == TOK_STAR) t = next_token(&tmp);
+        else if (t.type == TOK_LBRACKET) { t = next_token(&tmp);
+            if (t.type == TOK_RBRACKET) t = next_token(&tmp); }
+    }
+    if (t.type == TOK_IDENT) {
+        t = next_token(&tmp);
+        if (t.type != TOK_IMMUT && t.type != TOK_MUT) return false;
+        t = next_token(&tmp);
+    }
+    if (t.type != TOK_LPAREN) return false;
+
+    d = 0;
+    do { if (t.type == TOK_LPAREN) d++; else if (t.type == TOK_RPAREN) d--;
+         t = next_token(&tmp); } while (d > 0 && t.type != TOK_EOF);
+    return t.type == TOK_LBRACE;
+}
+
 static bool starts_expression(TokenType type) {
     switch (type) {
         // Bunch of token checks to check if we're dereferencing or multiplying
@@ -123,7 +155,7 @@ static bool starts_expression(TokenType type) {
         case TOK_FLOAT_LIT: case TOK_STR_LIT:
         case TOK_RUNE_LIT: case TOK_TRUE:
         case TOK_FALSE: case TOK_NULL:
-        case TOK_IDENT: case TOK_FN:
+        case TOK_IDENT:
         case TOK_LPAREN: case TOK_LBRACKET:
         case TOK_LBRACE: case TOK_IF:
             return true;

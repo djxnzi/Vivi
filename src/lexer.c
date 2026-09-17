@@ -158,6 +158,7 @@ Token next_token(Lexer *lx) {
         if (match_word(lx, "proctime"))     return make_token(lx, TOK_PROCTIME, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "interop"))      return make_token(lx, TOK_INTEROP, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "primitive"))    return make_token(lx, TOK_PRIMITIVE, start, (int)(lx->cur - start), preceded_nl);
+        if (match_word(lx, "phrase"))       return make_token(lx, TOK_PHRASE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "inline"))       return make_token(lx, TOK_INLINE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "method"))       return make_token(lx, TOK_METHOD, start, (int)(lx->cur - start), preceded_nl);
 
@@ -280,7 +281,6 @@ const char *token_name(TokenType t) {
         case TOK_FALLTHROUGH:   return "FALLTHROUGH";
 
         // Functions & program flow
-        case TOK_FN:            return "FN";
         case TOK_RETURN:        return "RETURN";
         case TOK_DEFER:         return "DEFER";
 
@@ -299,6 +299,7 @@ const char *token_name(TokenType t) {
         case TOK_IMPORT:        return "IMPORT";
         case TOK_INTEROP:       return "INTEROP";
         case TOK_PRIMITIVE:     return "PRIMTIVE";
+        case TOK_PHRASE:        return "PHRASE";
         case TOK_INLINE:        return "INLINE";
         case TOK_METHOD:        return "METHOD";
 

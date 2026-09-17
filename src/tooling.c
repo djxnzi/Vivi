@@ -432,7 +432,8 @@ void print_ast(AstNode *node, int depth) {
             break;
 
         case PRIMITIVE:
-            printf("Primitive %.*s (%d params)\n",
+            printf("%s %.*s (%d params)\n",
+                node->as.primitive.body ? "Phrase" : "Primitive",
                 node->as.primitive.len, node->as.primitive.name, node->as.primitive.param_count);
             if (node->as.primitive.return_type) {
                 print_indent(depth + 1); printf("returns:\n");
@@ -440,6 +441,16 @@ void print_ast(AstNode *node, int depth) {
             }
             print_indent(depth + 1); printf("params:\n");
             for (int i = 0; i < node->as.primitive.param_count; i++) print_ast(node->as.primitive.params[i], depth + 2);
+            if (node->as.primitive.body) {
+                print_indent(depth + 1); printf("body:\n");
+                print_ast(node->as.primitive.body, depth + 2);
+            }
+            break;
+
+        case WORD:
+            printf("Word %.*s (%d args)\n", node->as.word.len, node->as.word.name, node->as.word.arg_count);
+            for (int i = 0; i < node->as.word.arg_count; i++) print_ast(node->as.word.args[i], depth + 1);
+            if (node->as.word.block) print_ast(node->as.word.block, depth + 1);
             break;
 
         case ARRAY_TYPE:

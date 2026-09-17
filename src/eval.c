@@ -740,10 +740,11 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
 
     if (shape.return_type) {
         if (!returned_value) {
-            print_err("no_return_value");
-            return make_null();
-        }
-        if (!return_type_matches(shape.return_type, result)) {
+            if (!type_is_void(shape.return_type)) {
+                print_err("no_return_value");
+                return make_null();
+            }
+        } else if (!return_type_matches(shape.return_type, result)) {
             if (shape.return_type->type == IDENT) {
                 const char *tname = shape.return_type->as.ident.name;
                 int tlen = shape.return_type->as.ident.len;
@@ -793,6 +794,16 @@ static FnShape get_fn_shape(AstNode *decl) {
             decl->as.method.len,
             decl->as.method.return_type,
             decl->as.method.body
+        };
+    }
+    if (decl->type == PRIMITIVE) {
+        return {
+            decl->as.primitive.params,
+            decl->as.primitive.param_count,
+            decl->as.primitive.name,
+            decl->as.primitive.len,
+            decl->as.primitive.return_type,
+            decl->as.primitive.body
         };
     }
     return {

@@ -411,14 +411,25 @@ AstNode* make_import(const char *path, int path_len, const char *alias, int alia
     return n;
 }
 
-AstNode* make_primitive(const char *name, int len, AstNode **params, int param_count, AstNode *return_type, int line, int col) {
+AstNode* make_primitive(const char *name, int len, AstNode **params, int param_count, AstNode *return_type, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(PRIMITIVE, line, col);
     n->as.primitive.name = name;
     n->as.primitive.len = len;
     n->as.primitive.params = params;
     n->as.primitive.param_count = param_count;
     n->as.primitive.return_type = return_type;
+    n->as.primitive.body = body;
     n->as.primitive.file = current_file;
+    return n;
+}
+
+AstNode* make_word(const char *name, int len, AstNode **args, int arg_count, AstNode *block, int line, int col) {
+    AstNode *n = ast_alloc(WORD, line, col);
+    n->as.word.name = name;
+    n->as.word.len = len;
+    n->as.word.args = args;
+    n->as.word.arg_count = arg_count;
+    n->as.word.block = block;
     return n;
 }
 

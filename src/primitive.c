@@ -273,6 +273,12 @@ static Value call_primitive(AstNode *decl, Value *args, int arg_count) {
         return make_null();
     }
 
+    if (decl->as.primitive.body) {
+        ObjFn *fn = (ObjFn*)decl->as.primitive.fn_obj;
+        if (!fn) { print_err("primitive_unavailable", decl->as.primitive.len, decl->as.primitive.name); return make_null(); }
+        return call_function(fn, args, arg_count, nullptr, 0, 0, nullptr);
+    }
+
     for (int i = 0; i < expected; i++) {
         AstNode *param = decl->as.primitive.params[i];
         Value checked = args[i];

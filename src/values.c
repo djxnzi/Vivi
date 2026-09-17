@@ -203,7 +203,16 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
     return true;
 }
 
+static bool type_is_void(AstNode *rt) {
+    if (is_ident(rt, "void")) return true;
+    if (rt->type == BINARY && rt->as.binary.op == TOK_PIPE)
+        return type_is_void(rt->as.binary.left) || type_is_void(rt->as.binary.right);
+    return false;
+}
+
 static bool return_type_matches(AstNode *return_type, Value result) {
+    if (is_ident(return_type, "void")) return result.type == ValueType::Null;
+
     if (return_type->type == ARRAY_TYPE) {
         if (result.type != ValueType::Array) return false;
 
@@ -410,6 +419,14 @@ static Value make_rune(const char *start, int len) {
     s->chars = start;
     s->len = len;
     Value v; v.type = ValueType::Rune; v.as.obj = (Obj*)s;
+    return v;
+}
+static Value make_phrase(AstNode *node) {
+    ObjPhrase *p = (ObjPhrase*)arena_alloc(sizeof(ObjPhrase));
+    p->obj.type = ValueType::Phrase;
+    p->obj.refcount = 0;
+    p->node = node;
+    Value v; v.type = ValueType::Phrase; v.as.obj = (Obj*)p;
     return v;
 }
 

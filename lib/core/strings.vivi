@@ -1,4 +1,4 @@
-index_of := fn (string str, string substr, i32 from := 0) -> i32 {
+i32 index_of := (string str, string substr, i32 from := 0) {
     if (substr.len == 0) return -1
     if (from < 0) from = 0
 
@@ -16,12 +16,12 @@ index_of := fn (string str, string substr, i32 from := 0) -> i32 {
     return -1
 }
 
-is_digit := fn (rune c) -> bool {
+bool is_digit := (rune c) {
     n := i32(c)
     return n >= 48 && n <= 57
 }
 
-has_prefix := fn (string str, string prefix) -> bool {
+bool has_prefix := (string str, string prefix) {
     if (prefix.len > str.len) {
         return false
     }
@@ -35,7 +35,7 @@ has_prefix := fn (string str, string prefix) -> bool {
     return true
 }
 
-has_suffix := fn (string str, string suffix) -> bool {
+bool has_suffix := (string str, string suffix) {
     if (suffix.len > str.len) {
         return false
     }
@@ -48,7 +48,7 @@ has_suffix := fn (string str, string suffix) -> bool {
     return true
 }
 
-contains := fn (string str, string substr) -> bool {
+bool contains := (string str, string substr) {
     if (substr.len == 0) return true
     if (substr.len > str.len) return false
 
@@ -67,7 +67,7 @@ contains := fn (string str, string substr) -> bool {
     return false
 }
 
-substring := fn (string str, i32 start := null, i32 end := null) {
+string substring := (string str, i32 start := null, i32 end := null) {
 
     arr := []
 
@@ -92,7 +92,7 @@ substring := fn (string str, i32 start := null, i32 end := null) {
     return result
 }
 
-split := fn (string str, string delimiter := null) -> array {
+array split := (string str, string delimiter := null) {
     if (str.len() == 0) panic("Cannot split an empty string!")
 
     start   := 0
@@ -115,12 +115,12 @@ split := fn (string str, string delimiter := null) -> array {
     return result
 }
 
-join := fn (string str1, string str2) -> string {
+string join := (string str1, string str2) {
     // Redundant, for js devs
     return str1 ~ str2
 }
 
-replace := fn (string str, string target, string replacement) -> string {
+string replace := (string str, string target, string replacement) {
     if replace == null return str
 
     for (i := 0; i <= str.len - target.len; i++) {
@@ -132,7 +132,7 @@ replace := fn (string str, string target, string replacement) -> string {
     return str
 }
 
-trim := fn (string str) -> string {
+string trim := (string str) {
     whitespace  := [" ", "\t", "\n", "\r"]
 
     start := 0
@@ -148,7 +148,7 @@ trim := fn (string str) -> string {
     return substring(str, start, end)
 }
 
-to_upper := fn (string str) -> string {
+string to_upper := (string str) {
     out := ""
     for i := 0; i < str.len; i++ {
         c := i32(str.char_at(i))
@@ -160,7 +160,7 @@ to_upper := fn (string str) -> string {
     return out
 }
 
-to_lower := fn (string str) -> string {
+string to_lower := (string str) {
     out := ""
     for i := 0; i < str.len; i++ {
         c := i32(str.char_at(i))
@@ -172,7 +172,7 @@ to_lower := fn (string str) -> string {
     return out
 }
 
-reverse := fn (string str) -> string {
+string reverse := (string str) {
     out := ""
     for (i := str.len - 1; i >= 0; i--) {
         out = out ~ str.char_at(i)
@@ -180,7 +180,7 @@ reverse := fn (string str) -> string {
     return out
 }
 
-to_pascal_case := fn (string str) -> string {
+string to_pascal_case := (string str) {
     out := ""
     new_word := true
     for (i := 0; i < str.len; i++) {
@@ -197,7 +197,7 @@ to_pascal_case := fn (string str) -> string {
     return out
 }
 
-to_camel_case := fn (string str) -> string {
+string to_camel_case := (string str) {
     out := ""
     new_word := false
     started := false
@@ -216,7 +216,7 @@ to_camel_case := fn (string str) -> string {
     return out
 }
 
-to_snake_case := fn (string str) -> string {
+string to_snake_case := (string str) {
     out := ""
     for (i := 0; i < str.len; i++) {
         c := i32(str.char_at(i))

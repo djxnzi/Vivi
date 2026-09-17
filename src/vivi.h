@@ -25,7 +25,7 @@ inline bool read_file(const char *path, std::string &out) {
 
 // Vivi forward decl
 struct Vivi {
-    const char* version = "0.1";
+    const char* version = "0.02a";
     std::string root_dir;
     const bool exit_code_debug = false;
     void processFlags(int argc, char* argv[], std::string& outScriptPath, const char **outScriptArgs, int *outScriptArgCount);

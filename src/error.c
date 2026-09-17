@@ -86,7 +86,7 @@ void print_err(const char* code, ...) {
         case hash("param_type_mismatch"):       fmt = "Argument for parameter '%.*s' does not match declared type"; break;
         case hash("variadic_type_mismatch"):    fmt = "Variadic argument %d does not match declared type"; break;
         case hash("no_return_value"):           fmt = "Function declared with '-> type' must return a value"; break;
-        case hash("wrong_return_type"):         fmt = "Function declared with '-> %.*s' returned a value of the wrong type"; break;
+        case hash("wrong_return_type"):         fmt = "Function returned a value that doesn't match its declared return type '%.*s'"; break;
         case hash("return_type_mismatch"):      fmt = "Function returned a value that doesn't match its declared return type"; break;
         case hash("self_outside_method"):       fmt = "'self' used outside a method"; break;
 

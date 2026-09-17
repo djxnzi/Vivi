@@ -10,6 +10,13 @@ static void* resolve_axiom(AstNode *decl);
 static AstNode **primitive_decls = nullptr;
 static int primitive_decl_count = 0, primitive_decl_capacity = 0;
 
+struct NewKeyword { const char *name; int len; };
+static NewKeyword *new_keywords = nullptr;
+static int new_keyword_count = 0, new_keyword_capacity = 0;
+static bool is_keyword(const char *name, int len);
+static void register_keyword(const char *name, int len);
+static void find_keywords(const char *src);
+
 static void register_method(const char *name, int len);
 static void unregister_method(const char *name, int len);
 static ObjFn* find_method(const char *name, int len);

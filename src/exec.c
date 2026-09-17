@@ -671,6 +671,21 @@ static AstNode* exec_stmt(AstNode *node) {
 
         case PRIMITIVE: {
             register_primitive(node);
+            if (node->as.primitive.body && !node->as.primitive.fn_obj) {
+                ObjFn *fn = (ObjFn*)arena_alloc(sizeof(ObjFn));
+                fn->obj.type = ValueType::Fn;
+                fn->is_native = false;
+                fn->obj.refcount = 0;
+                fn->decl = node;
+                fn->closure = global_env;
+                fn->file = current_file;
+                fn->source = program_source;
+                node->as.primitive.fn_obj = fn;
+            }
+            return nullptr;
+        }
+
+        case WORD: {
             return nullptr;
         }
 
@@ -762,6 +777,35 @@ static AstNode* exec_stmt(AstNode *node) {
         default:
             print_err("unhandled_node_type", (int)node->type);
             return nullptr;
+    }
+}
+
+static bool param_is_block(AstNode *param) {
+    AstNode *t = param->as.field.type_expr;
+    return t && t->type == IDENT && t->as.ident.len == 5 && strncmp(t->as.ident.name, "block", 5) == 0;
+}
+
+static void expand_words(AstNode *program) {
+    for (int i = 0; i < program->as.program.stmt_count; i++) {
+        AstNode *stmt = program->as.program.stmts[i];
+        if (stmt->type != WORD) continue;
+        AstNode *prim = find_primitive(stmt->as.word.name, stmt->as.word.len);
+        if (!prim || !prim->as.primitive.fn_obj) {
+            print_err("primitive_unavailable", stmt->as.word.len, stmt->as.word.name);
+            continue;
+        }
+        int pc = prim->as.primitive.param_count;
+        Value *argv = (Value*)arena_alloc(sizeof(Value) * (pc > 0 ? pc : 1));
+        int ai = 0;
+        for (int pi = 0; pi < pc; pi++) {
+            if (param_is_block(prim->as.primitive.params[pi]))
+                argv[pi] = make_phrase(stmt->as.word.block);
+            else
+                argv[pi] = (ai < stmt->as.word.arg_count) ? eval_expr(stmt->as.word.args[ai++]) : make_null();
+        }
+        Value result = call_function((ObjFn*)prim->as.primitive.fn_obj, argv, pc, nullptr, stmt->line, stmt->col, nullptr);
+        if (result.type == ValueType::Phrase)
+            program->as.program.stmts[i] = ((ObjPhrase*)result.as.obj)->node;
     }
 }
 

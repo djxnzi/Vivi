@@ -1,19 +1,17 @@
-#import "build/lib/core/_base.vivi"
-
 program_start :: timestamp()
 last_time := program_start
 
-now := fn -> i32 {
+now := () {
     return i32(timestamp())
 }
 
-dt := fn (c := now()) -> i32 {
+dt := (c := now()) {
     dt := (c - last_time) * 1000
     last_time = c
     return dt
 }
 
-dateTime := fn (c := i64(now())) -> array {
+dateTime := (c := i64(now())) {
     u32 s       := c % 86400
     u32 seconds := s % 60
     u32 minutes := (s % 3600) / 60
@@ -50,7 +48,7 @@ dateTime := fn (c := i64(now())) -> array {
     return [day, month, year]
 }
 
-getTime := fn (c := i64(now()), base_offset := i64(0), zulu := true) -> array {
+getTime := (c := i64(now()), base_offset := i64(0), zulu := true) {
     day   := dateTime()[0]
     month := dateTime()[1]
     year  := dateTime()[2]
@@ -107,7 +105,7 @@ getTime := fn (c := i64(now()), base_offset := i64(0), zulu := true) -> array {
 }
 
 // Tomohiko Sakamoto Algorithm
-getDay := fn (i32 d := dateTime()[0], i32 m := dateTime()[1], i32 y := dateTime()[2]) -> string {
+getDay := (i32 d := dateTime()[0], i32 m := dateTime()[1], i32 y := dateTime()[2]) {
     t := [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
     
     if (m < 3) y -= 1
@@ -125,7 +123,7 @@ getDay := fn (i32 d := dateTime()[0], i32 m := dateTime()[1], i32 y := dateTime(
     }
 }
 
-getMonth := fn (m := dateTime()[1]) -> string {
+getMonth := (m := dateTime()[1]) {
     switch m {
         0: return "January"
         1: return "February"
@@ -142,10 +140,10 @@ getMonth := fn (m := dateTime()[1]) -> string {
     }
 }
 
-getYear := fn (i32 y := dateTime()[2]) -> i32 {
+i32 getYear := (i32 y := dateTime()[2]) {
     return y
 }
 
-formatDate := fn (string d := getDay(), string m := getMonth(), i32 y := getYear()) -> string {
+formatDate := (string d := getDay(), string m := getMonth(), i32 y := getYear()) {
     return "{d}, {m} {y}"
 }

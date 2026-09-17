@@ -1,25 +1,25 @@
-#primitive _write       :: (i32 fd, string data) -> i32
-#primitive _exit        :: (i32 code)
-#primitive _traceback   :: () -> string
-#primitive _clock       :: () -> f64
-#primitive _rand        :: () -> i32
-#primitive _len         :: (a) -> u32
-#primitive _cast        :: (a, string t) -> value
-#primitive _set         :: (a, u32 i, item v)
-#primitive _get         :: (a, u32 i) -> item
-#primitive _trunc       :: (a, u32 n)
+#primitive i32 _write :: (i32 fd, string data)
+#primitive _exit :: (i32 code)
+#primitive string _traceback :: ()
+#primitive f64 _clock :: ()
+#primitive i32 _rand :: ()
+#primitive u32 _len :: (a)
+#primitive value _cast :: (a, string t)
+#primitive _set :: (a, u32 i, item v)
+#primitive item _get :: (a, u32 i)
+#primitive _trunc :: (a, u32 n)
 
 
 
 // Builtins
 
-print := fn (...) {
+print := (...) {
     _write(1, string(argv[0]))
     for i := 1; i < argc; i++ {
         _write(1, " " ~ string(argv[i]))
     }
 }
-println := fn (...) {
+println := (...) {
     _write(1, string(argv[0]))
     for i := 1; i < argc; i++ {
         _write(1, " " ~ string(argv[i]))
@@ -28,7 +28,7 @@ println := fn (...) {
     _write(1, "\n")
 }
 
-exit := fn (i32 code := 0) {
+exit := (i32 code := 0) {
     code = code % 256
     exit_codes := [0, 1, 2, 127, 134]
     if code in exit_codes {
@@ -38,7 +38,7 @@ exit := fn (i32 code := 0) {
         _exit(code);
     }
 }
-panic := fn (string str) {
+panic := (string str) {
     /* Exit codes:
         0: ok
         1: runtime error
@@ -51,15 +51,15 @@ panic := fn (string str) {
     exit(134);
 }
 
-timestamp := fn () {
+timestamp := () {
     return _clock()
 }
 
-rand := fn () {
+rand := () {
     return _rand()
 }
 
-hash := fn (string v) -> i32 {
+i32 hash := (string v) {
     h := 0
     n := _len(v)
     i := 0
@@ -72,22 +72,22 @@ hash := fn (string v) -> i32 {
 
 // Methods
 
-#method len := fn () {
+#method len := () {
     return _len(self)
 }
 
-#method fn char_at :: (i) {
+#method char_at :: (i) {
     if i < 0 or i >= _len(self) {
         panic("char_at() index out of range")
     }
     return _cast(_get(self, i), "rune")
 }
 
-#method fn push :: (v) {
+#method push :: (v) {
     _set(self, _len(self), v)
 }
 
-#method fn pop :: () {
+#method pop :: () {
     n := _len(self)
     if n == 0 { panic("Cannot pop from an empty array") }
     v := _get(self, n - 1)
@@ -95,11 +95,11 @@ hash := fn (string v) -> i32 {
     return v
 }
 
-#method fn empty :: () {
+#method empty :: () {
     _trunc(self, 0)
 }
 
-#method fn add :: (i, v) {
+#method add :: (i, v) {
     n := _len(self)
     j := n
     while j > i {
@@ -109,7 +109,7 @@ hash := fn (string v) -> i32 {
     _set(self, i, v)
 }
 
-#method fn take :: (i) {
+#method take :: (i) {
     n := _len(self)
     if i < 0 or i >= n { _panic("take() index out of range") }
     v := _get(self, i)
@@ -122,17 +122,17 @@ hash := fn (string v) -> i32 {
     return v
 }
 
-_is_num := fn (v) {
+_is_num := (v) {
     return v == i32 or v == f32
 }
 
-_lower_at := fn (s, i) {
+_lower_at := (s, i) {
     c := _get(s, i)
     if c >= 65 and c <= 90 { return c + 32 }
     return c
 }
 
-_text_greater := fn (l, r) {
+_text_greater := (l, r) {
     ls := _cast(l, "string")
     rs := _cast(r, "string")
     ln := _len(ls)
@@ -149,7 +149,7 @@ _text_greater := fn (l, r) {
     return ln > rn
 }
 
-#method fn sort :: () {
+#method sort :: () {
     n := _len(self)
     c := 0
     while c < n {
@@ -185,47 +185,47 @@ _text_greater := fn (l, r) {
 
 // Casts
 
-bool := fn (v) -> bool {
+bool bool := (v) {
     return _cast(v, "bool")
 }
-i8 := fn (v) -> i8 {
+i8 i8 := (v) {
     return _cast(v, "i8")
 }
-i16 := fn (v) -> i16 {
+i16 i16 := (v) {
     return _cast(v, "i16")
 }
-i32 := fn (v) -> i32 {
+i32 i32 := (v) {
     return _cast(v, "i32")
 }
-i64 := fn (v) -> i64 {
+i64 i64 := (v) {
     return _cast(v, "i64")
 }
-u8 := fn (v) -> u8 {
+u8 u8 := (v) {
     return _cast(v, "u8")
 }
-u16 := fn (v) -> u16 {
+u16 u16 := (v) {
     return _cast(v, "u16")
 }
-u32 := fn (v) -> u32 {
+u32 u32 := (v) {
     return _cast(v, "u32")
 }
-u64 := fn (v) -> u64 {
+u64 u64 := (v) {
     return _cast(v, "u64")
 }
-f32 := fn (v) -> f32 {
+f32 f32 := (v) {
     return _cast(v, "f32")
 }
-f64 := fn (v) -> f64 {
+f64 f64 := (v) {
     return _cast(v, "f64")
 }
-rune := fn (v) -> rune {
+rune rune := (v) {
     return _cast(v, "rune")
 }
-string := fn (v) -> string {
+string string := (v) {
     return _cast(v, "string")
 }
 // Explicit cast
-cast := fn (*v, type) {
+cast := (*v, type) {
     v* = type(v*)
     return v*
 }

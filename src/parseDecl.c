@@ -136,47 +136,75 @@ static AstNode** parse_param_list(Parser *p, int *out_count) {
 }
 
 static AstNode* parse_fn_lit(Parser *p, int line, int col) {
+    AstNode *return_type = parse_leading_return(p);
     int param_count;
     AstNode **params = parse_param_list(p, &param_count);
-    AstNode *return_type = parse_optional_return(p);
     AstNode *body = parse_block(p);
     return make_fn_lit(params, param_count, return_type, body, line, col);
 }
 
-static AstNode* parse_fn_decl(Parser *p) {
+static AstNode* parse_leading_return(Parser *p) {
+    if (is_type_void(p->current)) {
+        AstNode *n = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
+        parser_advance(p);
+        return n;
+    }
+    if (match(p, TOK_LBRACKET)) {
+        AstNode *first = parse_single_return(p);
+        if (check(p, TOK_PIPE)) {
+            AstNode *left = first;
+            while (match(p, TOK_PIPE)) {
+                int l = p->previous.line, c = p->previous.col;
+                left = make_binary(TOK_PIPE, left, parse_single_return(p), l, c);
+            }
+            expect(p, TOK_RBRACKET, "expected ']' after union return type");
+            return left;
+        }
+        if (check(p, TOK_COMMA)) {
+            AstList types; ast_list_init(&types); ast_list_push(&types, first);
+            while (match(p, TOK_COMMA)) ast_list_push(&types, parse_single_return(p));
+            int count; AstNode **items = ast_list_finish(&types, &count);
+            expect(p, TOK_RBRACKET, "expected ']' after multi-return type");
+            return make_return_type_list(items, count, first->line, first->col);
+        }
+        expect(p, TOK_RBRACKET, "expected ']' after return type");
+        return first;
+    }
+    if (is_type_keyword(p->current.type) || is_type_name_token(p->current)
+        || (check(p, TOK_IDENT) && peek_at(p, 1).type == TOK_IDENT)) {
+        return parse_single_return(p);
+    }
+    return nullptr;
+}
+
+static AstNode* parse_fn(Parser *p) {
     int line = p->current.line, col = p->current.col;
-    expect(p, TOK_FN, "expected 'fn'");
+    AstNode *return_type = parse_leading_return(p);
 
-    expect(p, TOK_IDENT, "expected function name after 'fn'");
-    const char *name = p->previous.start;
-    int name_len = p->previous.len;
-
-    expect(p, TOK_IMMUT, "expected '::' after function name");
+    const char *name = nullptr; int name_len = 0;
+    bool is_mut = false;
+    if (check(p, TOK_IDENT) && (peek_at(p, 1).type == TOK_IMMUT || peek_at(p, 1).type == TOK_MUT)) {
+        name = p->current.start; name_len = p->current.len;
+        is_mut = (peek_at(p, 1).type == TOK_MUT);
+        parser_advance(p);   // name
+        parser_advance(p);   // '::' or ':='
+    }
 
     int param_count;
     AstNode **params = parse_param_list(p, &param_count);
-    AstNode *return_type = parse_optional_return(p);
     AstNode *body = parse_block(p);
 
-    return make_fn_decl(name, name_len, params, param_count, return_type, body, line, col);
-}
-
-static AstNode* parse_lambda(Parser *p) {
-    int line = p->current.line, col = p->current.col;
-    parser_advance(p);
-    AstNode *lit = parse_fn_lit(p, line, col);
-
-    AstList args;
-    ast_list_init(&args);
-    AstNode *call = make_call(lit, &args, line, col);
-
-    if (match(p, TOK_SEMICOLON)) {
-    } else if (p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF)) {
-    } else {
-        parser_error(p, "expected newline or ';' after expression statement");
+    if (name) {
+        if (is_mut) {
+            AstNode *lit = make_fn_lit(params, param_count, return_type, body, line, col);
+            return make_mut_decl(name, name_len, false, nullptr, lit, line, col);
+        }
+        return make_fn_decl(name, name_len, params, param_count, return_type, body, line, col);
     }
 
-    return make_expr_stmt(call, line, col);
+    AstNode *lit = make_fn_lit(params, param_count, return_type, body, line, col);
+    AstList args; ast_list_init(&args);
+    return make_expr_stmt(make_call(lit, &args, line, col), line, col);
 }
 
 static AstNode* parse_single_return(Parser *p) {
@@ -202,35 +230,6 @@ static AstNode* parse_single_return(Parser *p) {
         return make_array_type(type_expr, line, col);
     }
     return type_expr;
-}
-
-static AstNode* parse_optional_return(Parser *p) {
-    if (!match(p, TOK_ARROW)) return nullptr;
-
-    AstNode *first = parse_single_return(p);
-
-    if (check(p, TOK_PIPE)) {
-        AstNode *left = first;
-        while (match(p, TOK_PIPE)) {
-            int line = p->current.line, col = p->current.col;
-            left = make_binary(TOK_PIPE, left, parse_single_return(p), line, col);
-        }
-        return left;
-    }
-
-    if (check(p, TOK_COMMA)) {
-        AstList types;
-        ast_list_init(&types);
-        ast_list_push(&types, first);
-        while (match(p, TOK_COMMA)) {
-            ast_list_push(&types, parse_single_return(p));
-        }
-        int count;
-        AstNode **items = ast_list_finish(&types, &count);
-        return make_return_type_list(items, count, first->line, first->col);
-    }
-
-    return first;
 }
 
 static AstNode* parse_struct_decl(Parser *p) {
@@ -354,6 +353,7 @@ static AstNode* parse_primitive(Parser *p) {
     int line = p->current.line, col = p->current.col;
     expect(p, TOK_PRIMITIVE, "expected '#primitive'");
 
+    AstNode *return_type = parse_leading_return(p);
     expect(p, TOK_IDENT, "expected primitive name after '#primitive'");
     const char *name = p->previous.start;
     int name_len = p->previous.len;
@@ -362,60 +362,66 @@ static AstNode* parse_primitive(Parser *p) {
 
     int param_count;
     AstNode **params = parse_param_list(p, &param_count);
-    AstNode *return_type = parse_optional_return(p);
 
-    if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl
+    if (check(p, TOK_LBRACE)) {
+        parser_error(p, "#primitive is for axioms and cannot have a body; use #phrase");
+    } else if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl
         && !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         parser_error(p, "expected newline or ';' after primitive declaration");
     }
+    return make_primitive(name, name_len, params, param_count, return_type, nullptr, line, col);
+}
 
-    return make_primitive(name, name_len, params, param_count, return_type, line, col);
+static AstNode* parse_phrase(Parser *p) {
+    int line = p->current.line, col = p->current.col;
+    expect(p, TOK_PHRASE, "expected '#phrase'");
+    AstNode *return_type = parse_leading_return(p);
+    expect(p, TOK_IDENT, "expected phrase name after '#phrase'");
+    const char *name = p->previous.start;
+    int name_len = p->previous.len;
+    expect(p, TOK_IMMUT, "expected '::' after phrase name");
+    int param_count;
+    AstNode **params = parse_param_list(p, &param_count);
+
+    if (!check(p, TOK_LBRACE)) {
+        parser_error(p, "#phrase requires a body");
+        return make_primitive(name, name_len, params, param_count, return_type, nullptr, line, col);
+    }
+
+    AstNode *body = parse_block(p);
+
+    return make_primitive(name, name_len, params, param_count, return_type, body, line, col);
 }
 
 static AstNode* parse_method(Parser *p) {
     int line = p->current.line, col = p->current.col;
     expect(p, TOK_METHOD, "expected '#method'");
 
-    const char *name;
-    int name_len;
+    AstNode *return_type = parse_leading_return(p);
+    expect(p, TOK_IDENT, "expected method name after '#method'");
+    const char *name = p->previous.start;
+    int name_len = p->previous.len;
+
     bool is_mut;
-
-    if (check(p, TOK_FN)) {
-        // Immutable functions
-        parser_advance(p);
-        expect(p, TOK_IDENT, "expected method name after 'fn'");
-        name = p->previous.start;
-        name_len = p->previous.len;
-        expect(p, TOK_IMMUT, "expected '::' after method name");
+    if (match(p, TOK_IMMUT)) {
         is_mut = false;
-    } else {
-        expect(p, TOK_IDENT, "expected method name after '#method");
-        name = p->previous.start;
-        name_len = p->previous.len;
-
-        if (check(p, TOK_ASSIGN)) {
-            // Reassign
-            parser_advance(p);
-            AstNode *value = parse_expression(p);
-
-            if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl && !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-                parser_error(p, "expected newline or ';' after method reassignment");
-            }
-
-            AstNode *n = make_assign(make_ident(name, name_len, line, col), TOK_ASSIGN, value, line, col);
-            n->as.assign.is_method = true;
-            return n;
+    } else if (check(p, TOK_ASSIGN)) {
+        parser_advance(p);
+        AstNode *value = parse_expression(p);
+        if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl
+            && !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+            parser_error(p, "expected newline or ';' after method reassignment");
         }
-
-        // Mmutable functions
-        expect(p, TOK_MUT, "expected ':=' after method name");
-        expect(p, TOK_FN, "expected 'fn' after ':='");
+        AstNode *n = make_assign(make_ident(name, name_len, line, col), TOK_ASSIGN, value, line, col);
+        n->as.assign.is_method = true;
+        return n;
+    } else {
+        expect(p, TOK_MUT, "expected '::' or ':=' after method name");
         is_mut = true;
     }
 
     int param_count;
     AstNode **params = parse_param_list(p, &param_count);
-    AstNode *return_type = parse_optional_return(p);
     AstNode *body = parse_block(p);
 
     AstNode *n = make_method(name, name_len, params, param_count, return_type, body, line, col);

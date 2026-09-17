@@ -23,7 +23,7 @@ static Keyword keywords[] = {
     {"if", TOK_IF}, {"else", TOK_ELSE}, {"while", TOK_WHILE}, {"for", TOK_FOR}, {"in", TOK_IN},
     {"switch", TOK_SWITCH}, {"default", TOK_DEFAULT}, {"break", TOK_BREAK},
     {"continue", TOK_CONTINUE}, {"fallthrough", TOK_FALLTHROUGH},
-    {"fn", TOK_FN}, {"return", TOK_RETURN}, {"defer", TOK_DEFER},
+    {"return", TOK_RETURN}, {"defer", TOK_DEFER},
     {"struct", TOK_STRUCT}, {"enum", TOK_ENUM},
     {"local", TOK_LOCAL}, {"static", TOK_STATIC},
     {"try", TOK_TRY}, {"catch", TOK_CATCH},

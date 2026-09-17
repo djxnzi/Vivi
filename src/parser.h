@@ -3,6 +3,7 @@ struct Parser {
     Token current;
     Token previous;
     bool had_error;
+    bool no_fn_lit = false;
 
     Token lookahead[3];
     int lookahead_count;
@@ -38,6 +39,7 @@ static bool is_binary_op(TokenType type);
 static bool is_assign_op(TokenType type);
 static bool is_type_keyword(TokenType type);
 static bool at_type_annotation(Parser *p);
+static bool check_fn(Parser *p);
 static void sync(Parser *p);
 
 // Expr
@@ -59,10 +61,9 @@ static AstNode* parse_decl(Parser *p);
 static AstNode* parse_destructure_decl(Parser *p);
 static AstNode** parse_param_list(Parser *p, int *out_count);
 static AstNode* parse_fn_lit(Parser *p, int line, int col);
-static AstNode* parse_fn_decl(Parser *p);
-static AstNode* parse_lambda(Parser *p);
+static AstNode* parse_fn(Parser *p);
+static AstNode* parse_leading_return(Parser *p);
 static AstNode* parse_single_return(Parser *p);
-static AstNode* parse_optional_return(Parser *p);
 static AstNode* parse_struct_decl(Parser *p);
 static AstNode* parse_enum_decl(Parser *p);
 static AstNode* parse_type_block(Parser *p);
@@ -73,6 +74,7 @@ static AstNode* parse_inner(Parser *p);
 static AstNode* parse_block(Parser *p);
 static AstNode* parse_program(Parser *p);
 static AstNode* parse_expr_statement(Parser *p);
+static AstNode* parse_condition(Parser *p);
 static AstNode* parse_if_stmt(Parser *p);
 static AstNode* parse_if_branch(Parser *p);
 static AstNode* parse_while_stmt(Parser *p);
@@ -91,4 +93,5 @@ static AstNode* parse_continue_stmt(Parser *p, int line, int col);
 static AstNode* parse_fallthrough_stmt(Parser *p, int line, int col);
 static AstNode* parse_try_stmt(Parser *p);
 static AstNode* parse_import(Parser *p);
+static AstNode* parse_word(Parser *p);
 static AstNode* parse_proctime_stmt(Parser *p);

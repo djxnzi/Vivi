@@ -7,19 +7,19 @@ f64 epsilon :: 0.000000000001
 ln2         :: 0.6931471805599453
 ln10        :: 2.302585092994046
 
-abs := fn (x) {
+abs := (x) {
     return (x < 0 ? -x : x)
 }
 
-min := fn (a, b) {
+min := (a, b) {
     return (a < b ? a : b)
 }
 
-max := fn (a, b) {
+max := (a, b) {
     return (a > b ? a : b)
 }
 
-clamp := fn (x, low, high) {
+clamp := (x, low, high) {
     return if (x < low) {
         low
     } else if (x > high) {
@@ -29,11 +29,11 @@ clamp := fn (x, low, high) {
     }
 }
 
-lerp := fn (a, b, t) {
+lerp := (a, b, t) {
     return (a + (b - a) * t)
 }
 
-sign := fn (x) {
+sign := (x) {
     return if (x > 0) {
         1
     } else if (x < 0) {
@@ -43,7 +43,7 @@ sign := fn (x) {
     }
 }
 
-copysign := fn (x, y) {
+copysign := (x, y) {
     return if (y < 0) {
         -abs(x)
     } else {
@@ -51,11 +51,11 @@ copysign := fn (x, y) {
     }
 }
 
-trunc := fn (x) {
+trunc := (x) {
     return f32(i32(x))
 }
 
-floor := fn (x) {
+floor := (x) {
     t := i32(x)
     if (x >= 0 || f32(t) == x) {
         return f32(t)
@@ -63,7 +63,7 @@ floor := fn (x) {
     return f32(t - 1)
 }
 
-ceil := fn (x) {
+ceil := (x) {
     t := i32(x)
     if (x <= 0 || f32(t) == x) {
         return f32(t)
@@ -71,7 +71,7 @@ ceil := fn (x) {
     return f32(t + 1)
 }
 
-round := fn (x) {
+round := (x) {
     i := floor(x)
     frac := x - i
     if (frac < 0.5) {
@@ -87,17 +87,17 @@ round := fn (x) {
     }
 }
 
-fmod := fn (x, y) {
+fmod := (x, y) {
     return x - f32(i32(x / y)) * y
 }
 
-modf := fn (x) {
+modf := (x) {
     intpart := f32(i32(x))
     frac := x - intpart
     return [frac, intpart]
 }
 
-sqrt := fn (x) {
+sqrt := (x) {
     if (x < 0) {
         panic("sqrt domain error")
     } else if (x == 0) {
@@ -110,7 +110,7 @@ sqrt := fn (x) {
     return guess
 }
 
-exp := fn (x) {
+exp := (x) {
     if (x > 700)  { return inf }
     if (x < -700) { return 0.0 }
     if (x < 0) {
@@ -127,7 +127,7 @@ exp := fn (x) {
     return result
 }
 
-log := fn (x) -> f64 {
+f64 log := (x) {
     if (x <= 0) { panic("log domain error") }
     if (x == 1) { return 0.0 }
     k := 0
@@ -153,15 +153,15 @@ log := fn (x) -> f64 {
     return sum + f64(k) * ln2
 }
 
-log10 := fn (x) -> f64 {
+f64 log10 := (x) {
     return log(x) / ln10
 }
 
-log2 := fn (x) {
+log2 := (x) {
     return log(x) / ln2
 }
 
-expm1 := fn (x) {
+expm1 := (x) {
     if (abs(x) < 0.01) {
         sum := 0.0
         term := x
@@ -176,7 +176,7 @@ expm1 := fn (x) {
     return exp(x) - 1
 }
 
-cbrt := fn (x) {
+cbrt := (x) {
     if (x == 0) { return 0 }
     guess := x
     for (i := 0; i < 20; i++) {
@@ -185,7 +185,7 @@ cbrt := fn (x) {
     return guess
 }
 
-hypot := fn (a, b) {
+hypot := (a, b) {
     a = f32(abs(a))
     b = f32(abs(b))
     if (a == 0 && b == 0) { return 0 }
@@ -195,7 +195,7 @@ hypot := fn (a, b) {
     return b * sqrt(1 + (a / b) * (a / b))
 }
 
-pow := fn (base, exponent) {
+pow := (base, exponent) {
     if (exponent == 0) { return 1 }
     if (base == 0) {
         if (exponent < 0) { panic("pow domain error") }
@@ -207,7 +207,7 @@ pow := fn (base, exponent) {
     return result
 }
 
-sin := fn (x) {
+sin := (x) {
     x = fmod(x, 2 * pi)
     if (x < 0) { return -sin(-x) }
     if (x > pi) { x = 2 * pi - x }
@@ -225,17 +225,17 @@ sin := fn (x) {
     return result
 }
 
-cos := fn (x) {
+cos := (x) {
     return sin(pi / 2 - x)
 }
 
-tan := fn (x) {
+tan := (x) {
     c := cos(x)
     if (c == 0) { panic("tan undefined") }
     return sin(x) / c
 }
 
-atan := fn (x) {
+atan := (x) {
     if (x == 1)  { return pi / 4 }
     if (x == -1) { return -pi / 4 }
     if (abs(x) > 1) {
@@ -258,7 +258,7 @@ atan := fn (x) {
     return result
 }
 
-atan2 := fn (y, x) {
+atan2 := (y, x) {
     if (x > 0) {
         return atan(y / x)
     } else if (x < 0) {
@@ -271,50 +271,50 @@ atan2 := fn (y, x) {
     }
 }
 
-asin := fn (x) {
+asin := (x) {
     if (abs(x) > 1) { panic("asin domain error") }
     return atan2(x, sqrt(1 - x * x))
 }
 
-acos := fn (x) {
+acos := (x) {
     return pi / 2 - asin(x)
 }
 
-sinh := fn (x) {
+sinh := (x) {
     return (exp(x) - exp(-x)) / 2
 }
 
-cosh := fn (x) {
+cosh := (x) {
     return (exp(x) + exp(-x)) / 2
 }
 
-tanh := fn (x) {
+tanh := (x) {
     return sinh(x) / cosh(x)
 }
 
-asinh := fn (x) {
+asinh := (x) {
     return log(x + sqrt(x * x + 1))
 }
 
-acosh := fn (x) {
+acosh := (x) {
     if (x < 1) { panic("acosh domain error") }
     return log(x + sqrt(x * x - 1))
 }
 
-atanh := fn (x) {
+atanh := (x) {
     if (abs(x) >= 1) { panic("atanh domain error") }
     return 0.5 * log((1 + x) / (1 - x))
 }
 
-deg_to_rad := fn (d) {
+deg_to_rad := (d) {
     return d * (pi / 180)
 }
 
-rad_to_deg := fn (r) {
+rad_to_deg := (r) {
     return r * (180 / pi)
 }
 
-gcd := fn (a, b) {
+gcd := (a, b) {
     a = abs(a)
     b = abs(b)
     t := b
@@ -331,7 +331,7 @@ lcm := fn (a, b) {
     return abs(a) / gcd(a, b) * abs(b)
 }
 
-factorial := fn (n) {
+factorial := (n) {
     if (n < 0) { panic("factorial domain error") }
     result := 1
     for (i := 2; i <= n; i++) {
@@ -340,7 +340,7 @@ factorial := fn (n) {
     return result
 }
 
-gamma := fn (x) {
+gamma := (x) {
     if (x <= 0 and x == f32(i32(x))) { panic("gamma pole") }
     c := [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
           771.32342877765313, -176.61502916214059, 12.507343278686905,
@@ -353,7 +353,7 @@ gamma := fn (x) {
     return sqrt(2 * pi) * pow(tmp, x - 0.5) * exp(-tmp) * sum
 }
 
-erf := fn (x) {
+erf := (x) {
     s := 1
     if (x < 0) { s = -1; x = -x }
     t := 1.0 / (1.0 + 0.3275911 * x)
@@ -361,6 +361,6 @@ erf := fn (x) {
     return s * (1.0 - poly * exp(-x * x))
 }
 
-erfc := fn (x) {
+erfc := (x) {
     return 1.0 - erf(x)
 }

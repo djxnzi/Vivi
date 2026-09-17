@@ -1,6 +1,6 @@
-#import "core:strings" as _
+#import "core:strings" as _ 
 
-fn run :: () {
+void run :: () {
 
     println("\n")
 
@@ -15,7 +15,7 @@ fn run :: () {
     print("\n")
 
     // Defer
-    fn cleanup :: () { println("This was deferred \n") }
+    cleanup :: () { println("This was deferred \n") }
     defer cleanup()
 
     /****************************/
@@ -113,30 +113,30 @@ fn run :: () {
 
     // Functions
 
-    fn mult :: (a, b) -> i32 {
+    i32 mult :: (a, b) {
         return a * b
     }
     
-    mutable_fn := fn (a) {
+    mutable_fn := (a) {
         return a
     }
 
-    fn () {
+    () {
         println("Anonymous function")
     }
 
-    fn pub :: () {
-        priv := fn () {
+    pub :: () {
+        priv := () {
             return println("Private functions work the same way as they do in structs")
         }
         return priv()
     }
 
-    fn fn_defaults :: (a := 1, f32 b := 2.0) { }
-    fn fn_union_return :: () -> i32 | string { return 1 }
-    fn fn_multi_return :: () -> i32, string { return 1, "a" }
-    fn variadic_fn :: (...) { println(argc, argv) }
-    fn typed_variadic_fn :: (i32 ...) { println(argc) }
+    fn_defaults :: (a := 1, f32 b := 2.0) { }
+    [i32 | string] fn_union_return :: () { return 1 }
+    [i32, string] fn_multi_return :: () { return 1, "a" }
+    variadic_fn :: (...) { println(argc, argv) }
+    typed_variadic_fn :: (i32 ...) { println(argc) }
 
     println("Mult:", mult(1, 2))
     pub()
@@ -146,11 +146,11 @@ fn run :: () {
 
     // Lambdas
     println("Lambdas")
-    handlers := [fn(){return 1}, fn(){return 2}]
+    handlers := [(){return 1}, (){return 2}]
     println(handlers[0]())
-    dispatch := {log: fn(msg){println(msg)}}
+    dispatch := {log: (msg){println(msg)}}
     dispatch.log("hi")
-    lazy := if true { fn(m){println(m)} } else { fn(m){} }
+    lazy := if true { (m){println(m)} } else { (m){} }
     lazy("cond-fn")
 
     print("\n")
@@ -264,7 +264,7 @@ fn run :: () {
 
 }
 
-fn main :: (argc, argv) {
+void main :: (argc, argv) {
     print("argv0:", argv[0])
     run()
 }
