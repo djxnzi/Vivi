@@ -52,33 +52,33 @@ static AstNode** ast_list_finish(AstList *list, int *out_count) {
 
 AstNode* make_int_lit(long value, int line, int col) {
     AstNode *n = ast_alloc(INT_LIT, line, col);
-    n->int_val = value;
+    n->as.int_lit.value = value;
     return n;
 }
 
 AstNode* make_float_lit(double value, int line, int col) {
     AstNode *n = ast_alloc(FLOAT_LIT, line, col);
-    n->float_val = value;
+    n->as.float_lit.value = value;
     return n;
 }
 
 AstNode* make_str_lit(const char *start, int len, int line, int col) {
     AstNode *n = ast_alloc(STR_LIT, line, col);
-    n->text = start;
-    n->len = len;
+    n->as.str_lit.start = start;
+    n->as.str_lit.len = len;
     return n;
 }
 
 AstNode* make_rune_lit(const char *start, int len, int line, int col) {
     AstNode *n = ast_alloc(RUNE_LIT, line, col);
-    n->text = start;
-    n->len = len;
+    n->as.rune_lit.start = start;
+    n->as.rune_lit.len = len;
     return n;
 }
 
 AstNode* make_bool_lit(bool value, int line, int col) {
     AstNode *n = ast_alloc(BOOL_LIT, line, col);
-    n->bool_val = value;
+    n->as.bool_lit.value = value;
     return n;
 }
 
@@ -88,146 +88,146 @@ AstNode* make_null_lit(int line, int col) {
 
 AstNode* make_ident(const char *name, int len, int line, int col) {
     AstNode *n = ast_alloc(IDENT, line, col);
-    n->name = name;
-    n->len = len;
+    n->as.ident.name = name;
+    n->as.ident.len = len;
     return n;
 }
 
 AstNode* make_binary(TokenType op, AstNode *left, AstNode *right, int line, int col) {
     AstNode *n = ast_alloc(BINARY, line, col);
-    n->op = op;
-    n->left = left;
-    n->right = right;
+    n->as.binary.op = op;
+    n->as.binary.left = left;
+    n->as.binary.right = right;
     return n;
 }
 
 AstNode* make_unary(TokenType op, AstNode *operand, int line, int col) {
     AstNode *n = ast_alloc(UNARY, line, col);
-    n->op = op;
-    n->operand = operand;
+    n->as.unary.op = op;
+    n->as.unary.operand = operand;
     return n;
 }
 
 AstNode* make_postfix(TokenType op, AstNode *operand, int line, int col) {
     AstNode *n = ast_alloc(POSTFIX, line, col);
-    n->op = op;
-    n->operand = operand;
+    n->as.unary.op = op;
+    n->as.unary.operand = operand;
     return n;
 }
 
 AstNode* make_ternary(AstNode *cond, AstNode *then_expr, AstNode *else_expr, int line, int col) {
     AstNode *n = ast_alloc(TERNARY, line, col);
-    n->cond = cond;
-    n->then_expr = then_expr;
-    n->else_expr = else_expr;
+    n->as.ternary.cond = cond;
+    n->as.ternary.then_expr = then_expr;
+    n->as.ternary.else_expr = else_expr;
     return n;
 }
 
 AstNode* make_call(AstNode *callee, AstList *args, int line, int col) {
     AstNode *n = ast_alloc(CALL, line, col);
-    n->callee = callee;
-    n->args = ast_list_finish(args, &n->arg_count);
+    n->as.call.callee = callee;
+    n->as.call.args = ast_list_finish(args, &n->as.call.arg_count);
     return n;
 }
 
 AstNode* make_index(AstNode *object, AstNode **indices, int index_count, int line, int col) {
     AstNode *n = ast_alloc(INDEX, line, col);
-    n->object = object;
-    n->indices = indices;
-    n->index_count = index_count;
+    n->as.index.object = object;
+    n->as.index.indices = indices;
+    n->as.index.index_count = index_count;
     return n;
 }
 
 AstNode* make_field(const char *name, int len, AstNode *type_expr, AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(FIELD, line, col);
-    n->name = name;
-    n->len = len;
-    n->type_expr = type_expr;
-    n->value = value;
+    n->as.field.name = name;
+    n->as.field.len = len;
+    n->as.field.type_expr = type_expr;
+    n->as.field.value = value;
     return n;
 }
 
 AstNode* make_field_access(AstNode *object, const char *field, int len, int line, int col) {
     AstNode *n = ast_alloc(FIELD_ACCESS, line, col);
-    n->object = object;
-    n->field = field;
-    n->len = len;
+    n->as.field_access.object = object;
+    n->as.field_access.field = field;
+    n->as.field_access.len = len;
     return n;
 }
 
 AstNode* make_block(AstList *stmts, int line, int col) {
     AstNode *n = ast_alloc(BLOCK, line, col);
-    n->stmts = ast_list_finish(stmts, &n->stmt_count);
+    n->as.block.stmts = ast_list_finish(stmts, &n->as.block.stmt_count);
     return n;
 }
 
 AstNode* make_if_stmt(AstNode *cond, AstNode *then_branch, AstNode *else_branch, int line, int col) {
     AstNode *n = ast_alloc(IF_STMT, line, col);
-    n->cond = cond;
-    n->then_branch = then_branch;
-    n->else_branch = else_branch;
+    n->as.if_stmt.cond = cond;
+    n->as.if_stmt.then_branch = then_branch;
+    n->as.if_stmt.else_branch = else_branch;
     return n;
 }
 
 AstNode* make_while_stmt(AstNode *cond, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(WHILE_STMT, line, col);
-    n->cond = cond;
-    n->body = body;
+    n->as.while_stmt.cond = cond;
+    n->as.while_stmt.body = body;
     return n;
 }
 
 AstNode* make_switch_stmt(AstNode *scrutinee, AstNode *guard, AstList *cases, int line, int col) {
     AstNode *n = ast_alloc(SWITCH_STMT, line, col);
-    n->scrutinee = scrutinee;
-    n->guard = guard;
-    n->cases = ast_list_finish(cases, &n->case_count);
+    n->as.switch_stmt.scrutinee = scrutinee;
+    n->as.switch_stmt.guard = guard;
+    n->as.switch_stmt.cases = ast_list_finish(cases, &n->as.switch_stmt.case_count);
     return n;
 }
 
 AstNode* make_switch_case(AstNode *label, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(SWITCH_CASE, line, col);
-    n->label = label;
-    n->body = body;
+    n->as.switch_case.label = label;
+    n->as.switch_case.body = body;
     return n;
 }
 
 AstNode* make_for_range(AstNode *start, AstNode *end, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(FOR_RANGE, line, col);
-    n->start = start;
-    n->end = end;
-    n->body = body;
+    n->as.for_range.start = start;
+    n->as.for_range.end = end;
+    n->as.for_range.body = body;
     return n;
 }
 
 AstNode* make_for_cstyle(AstNode *init, AstNode *cond, AstNode *incr, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(FOR_CSTYLE, line, col);
-    n->init = init;
-    n->cond = cond;
-    n->incr = incr;
-    n->body = body;
+    n->as.for_cstyle.init = init;
+    n->as.for_cstyle.cond = cond;
+    n->as.for_cstyle.incr = incr;
+    n->as.for_cstyle.body = body;
     return n;
 }
 
 AstNode* make_for_in(const char *key_name, int key_len, const char *val_name, int val_len, AstNode *iterable, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(FOR_IN, line, col);
-    n->key_name = key_name;
-    n->key_len  = key_len;
-    n->val_name = val_name;
-    n->val_len  = val_len;
-    n->iterable = iterable;
-    n->body     = body;
+    n->as.for_in.key_name = key_name;
+    n->as.for_in.key_len  = key_len;
+    n->as.for_in.val_name = val_name;
+    n->as.for_in.val_len  = val_len;
+    n->as.for_in.iterable = iterable;
+    n->as.for_in.body     = body;
     return n;
 }
 
 AstNode* make_return_stmt(AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(RETURN_STMT, line, col);
-    n->value = value;
+    n->as.return_stmt.value = value;
     return n;
 }
 
 AstNode* make_defer_stmt(AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(DEFER_STMT, line, col);
-    n->value = value;
+    n->as.defer_stmt.value = value;
     return n;
 }
 
@@ -253,150 +253,150 @@ AstNode* make_fallthrough_stmt(int line, int col) {
 
 AstNode* make_assign(AstNode *target, TokenType op, AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(ASSIGN, line, col);
-    n->target = target;
-    n->op = op;
-    n->value = value;
+    n->as.assign.target = target;
+    n->as.assign.op = op;
+    n->as.assign.value = value;
     return n;
 }
 
 AstNode* make_program(AstList *stmts, int line, int col) {
     AstNode *n = ast_alloc(PROGRAM, line, col);
-    n->stmts = ast_list_finish(stmts, &n->stmt_count);
+    n->as.program.stmts = ast_list_finish(stmts, &n->as.program.stmt_count);
     return n;
 }
 
 AstNode* make_expr_stmt(AstNode *expr, int line, int col) {
     AstNode *n = ast_alloc(EXPR_STMT, line, col);
-    n->expr = expr;
+    n->as.expr_stmt.expr = expr;
     return n;
 }
 
 AstNode* make_array_lit(AstNode **items, int count, int line, int col) {
     AstNode *n = ast_alloc(ARRAY_LIT, line, col);
-    n->items = items;
-    n->count = count;
+    n->as.array_lit.items = items;
+    n->as.array_lit.count = count;
     return n;
 }
 
 AstNode* make_array_entry(AstNode *key, AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(ARRAY_ENTRY, line, col);
-    n->key = key;
-    n->value = value;
+    n->as.array_entry.key = key;
+    n->as.array_entry.value = value;
     return n;
 }
 
 AstNode* make_struct_lit(AstNode **fields, int count, int line, int col) {
     AstNode *n = ast_alloc(STRUCT_LIT, line, col);
-    n->fields = fields;
-    n->count = count;
+    n->as.struct_lit.fields = fields;
+    n->as.struct_lit.count = count;
     return n;
 }
 
 AstNode* make_immut_decl(const char *name, int len, bool has_type_annotation, AstNode *type_annotation, AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(IMMUT_DECL, line, col);
-    n->name = name;
-    n->len = len;
-    n->has_type_annotation = has_type_annotation;
-    n->type_annotation = type_annotation;
-    n->value = value;
+    n->as.decl.name = name;
+    n->as.decl.len = len;
+    n->as.decl.has_type_annotation = has_type_annotation;
+    n->as.decl.type_annotation = type_annotation;
+    n->as.decl.value = value;
     return n;
 }
 
 AstNode* make_mut_decl(const char *name, int len, bool has_type_annotation, AstNode *type_annotation, AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(MUT_DECL, line, col);
-    n->name = name;
-    n->len = len;
-    n->has_type_annotation = has_type_annotation;
-    n->type_annotation = type_annotation;
-    n->value = value;
+    n->as.decl.name = name;
+    n->as.decl.len = len;
+    n->as.decl.has_type_annotation = has_type_annotation;
+    n->as.decl.type_annotation = type_annotation;
+    n->as.decl.value = value;
     return n;
 }
 
 AstNode* make_param(const char *name, int len, AstNode *type_expr, AstNode *default_value, int line, int col) {
     AstNode *n = ast_alloc(PARAM, line, col);
-    n->name = name;
-    n->len = len;
-    n->type_expr = type_expr;
-    n->value = default_value;
+    n->as.field.name = name;
+    n->as.field.len = len;
+    n->as.field.type_expr = type_expr;
+    n->as.field.value = default_value;
     return n;
 }
 
 AstNode* make_fn_lit(AstNode **params, int param_count, AstNode *return_type, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(FN_LIT, line, col);
-    n->name = nullptr;
-    n->len = 0;
-    n->params = params;
-    n->param_count = param_count;
-    n->return_type = return_type;
-    n->body = body;
+    n->as.fn_decl.name = nullptr;
+    n->as.fn_decl.len = 0;
+    n->as.fn_decl.params = params;
+    n->as.fn_decl.param_count = param_count;
+    n->as.fn_decl.return_type = return_type;
+    n->as.fn_decl.body = body;
     return n;
 }
 
 AstNode* make_fn_decl(const char *name, int len, AstNode **params, int param_count, AstNode *return_type, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(FN_DECL, line, col);
-    n->name = name;
-    n->len = len;
-    n->params = params;
-    n->param_count = param_count;
-    n->return_type = return_type;
-    n->body = body;
+    n->as.fn_decl.name = name;
+    n->as.fn_decl.len = len;
+    n->as.fn_decl.params = params;
+    n->as.fn_decl.param_count = param_count;
+    n->as.fn_decl.return_type = return_type;
+    n->as.fn_decl.body = body;
     return n;
 }
 
 AstNode* make_struct_decl(const char *name, int len, AstNode **fields, int field_count, int line, int col) {
     AstNode *n = ast_alloc(STRUCT_DECL, line, col);
-    n->name = name;
-    n->len = len;
-    n->fields = fields;
-    n->field_count = field_count;
+    n->as.struct_decl.name = name;
+    n->as.struct_decl.len = len;
+    n->as.struct_decl.fields = fields;
+    n->as.struct_decl.field_count = field_count;
     return n;
 }
 
 AstNode* make_enum_decl(const char *name, int len, AstNode **variants, int variant_count, int line, int col) {
     AstNode *n = ast_alloc(ENUM_DECL, line, col);
-    n->name = name;
-    n->len = len;
-    n->variants = variants;
-    n->variant_count = variant_count;
+    n->as.enum_decl.name = name;
+    n->as.enum_decl.len = len;
+    n->as.enum_decl.variants = variants;
+    n->as.enum_decl.variant_count = variant_count;
     return n;
 }
 
 AstNode* make_try_stmt(AstNode *try_block, const char *catch_name, int catch_len, AstNode *catch_block, int line, int col) {
     AstNode *n = ast_alloc(TRY_STMT, line, col);
-    n->try_block = try_block;
-    n->catch_name = catch_name;
-    n->catch_len = catch_len;
-    n->catch_block = catch_block;
+    n->as.try_stmt.try_block = try_block;
+    n->as.try_stmt.catch_name = catch_name;
+    n->as.try_stmt.catch_len = catch_len;
+    n->as.try_stmt.catch_block = catch_block;
     return n;
 }
 
 AstNode* make_type_block(TokenType type_annotation, AstNode **decls, int decl_count, int line, int col) {
     AstNode *n = ast_alloc(TYPE_BLOCK, line, col);
-    n->type_tok = type_annotation;
-    n->decls = decls;
-    n->decl_count = decl_count;
+    n->as.type_block.type_annotation = type_annotation;
+    n->as.type_block.decls = decls;
+    n->as.type_block.decl_count = decl_count;
     return n;
 }
 
 AstNode* make_array_type(AstNode *element_type, int line, int col) {
     AstNode *n = ast_alloc(ARRAY_TYPE, line, col);
-    n->element_type = element_type;
+    n->as.array_type.element_type = element_type;
     return n;
 }
 
 AstNode* make_destructure_decl(AstNode **targets, int target_count, bool is_immutable, AstNode *value, int line, int col) {
     AstNode *n = ast_alloc(DESTRUCTURE_DECL, line, col);
-    n->targets = targets;
-    n->target_count = target_count;
-    n->is_immutable = is_immutable;
-    n->value = value;
+    n->as.destructure_decl.targets = targets;
+    n->as.destructure_decl.target_count = target_count;
+    n->as.destructure_decl.is_immutable = is_immutable;
+    n->as.destructure_decl.value = value;
     return n;
 }
 
 AstNode* make_return_type_list(AstNode **types, int count, int line, int col) {
     AstNode *n = ast_alloc(RETURN_TYPE_LIST, line, col);
-    n->types = types;
-    n->count = count;
+    n->as.return_type_list.types = types;
+    n->as.return_type_list.count = count;
     return n;
 }
 
@@ -404,49 +404,38 @@ AstNode* make_return_type_list(AstNode **types, int count, int line, int col) {
 
 AstNode* make_import(const char *path, int path_len, const char *alias, int alias_len, int line, int col) {
     AstNode *n = ast_alloc(IMPORT, line, col);
-    n->path = path;
-    n->path_len = path_len;
-    n->alias = alias;
-    n->alias_len = alias_len;
+    n->as.import.path = path;
+    n->as.import.path_len = path_len;
+    n->as.import.alias = alias;
+    n->as.import.alias_len = alias_len;
     return n;
 }
 
-AstNode* make_primitive(const char *name, int len, AstNode **params, int param_count, AstNode *return_type, AstNode *body, int line, int col) {
+AstNode* make_primitive(const char *name, int len, AstNode **params, int param_count, AstNode *return_type, int line, int col) {
     AstNode *n = ast_alloc(PRIMITIVE, line, col);
-    n->name = name;
-    n->len = len;
-    n->params = params;
-    n->param_count = param_count;
-    n->return_type = return_type;
-    n->body = body;
-    n->file = current_file;
-    return n;
-}
-
-AstNode* make_word(const char *name, int len, AstNode **args, int arg_count, AstNode *block, int line, int col) {
-    AstNode *n = ast_alloc(WORD, line, col);
-    n->name = name;
-    n->len = len;
-    n->args = args;
-    n->arg_count = arg_count;
-    n->block = block;
+    n->as.primitive.name = name;
+    n->as.primitive.len = len;
+    n->as.primitive.params = params;
+    n->as.primitive.param_count = param_count;
+    n->as.primitive.return_type = return_type;
+    n->as.primitive.file = current_file;
     return n;
 }
 
 AstNode* make_proctime_block(AstList *stmts, int line, int col) {
     AstNode *n = ast_alloc(PROCTIME_BLOCK, line, col);
-    n->stmts = ast_list_finish(stmts, &n->stmt_count);
+    n->as.proctime_block.stmts = ast_list_finish(stmts, &n->as.proctime_block.stmt_count);
     return n;
 }
 
 AstNode* make_method(const char *name, int len, AstNode **params, int param_count, AstNode *return_type, AstNode *body, int line, int col) {
     AstNode *n = ast_alloc(METHOD, line, col);
-    n->name = name;
-    n->len = len;
-    n->params = params;
-    n->param_count = param_count;
-    n->return_type = return_type;
-    n->body = body;
+    n->as.method.name = name;
+    n->as.method.len = len;
+    n->as.method.params = params;
+    n->as.method.param_count = param_count;
+    n->as.method.return_type = return_type;
+    n->as.method.body = body;
     return n;
 }
 

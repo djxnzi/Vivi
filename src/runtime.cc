@@ -97,7 +97,6 @@ void Vivi::processFlags(int argc, char* argv[], std::string& outScriptPath, cons
                     p.lookahead_count = 0;
                     parser_advance(&p);
 
-                    find_keywords(source.c_str());
                     AstNode *program = parse_program(&p);
                     if (p.had_error) {
                         printf("\nParsing finished with errors.\n\n");
@@ -130,7 +129,6 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
     p.had_error = false;
     p.lookahead_count = 0;
     parser_advance(&p);
-    find_keywords(source.c_str());
     AstNode *program = parse_program(&p);
 
     global_env = env_new(nullptr);
@@ -159,8 +157,8 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
 
         if (!base_p.had_error) {
             resolve_primitives(base_program);
-            for (int i = 0; i < base_program->stmt_count; i++)
-                exec_stmt(base_program->stmts[i]);
+            for (int i = 0; i < base_program->as.program.stmt_count; i++)
+                exec_stmt(base_program->as.program.stmts[i]);
         }
 
         current_file = saved_file;
@@ -173,7 +171,6 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
 
     resolve_primitives(program);
     run_proctime(program);
-    expand_words(program);
     pt_check_structure(program);
 
     fwrite(proctime_kept_buf, 1, proctime_kept_size, stdout);

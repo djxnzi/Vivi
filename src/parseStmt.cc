@@ -11,27 +11,27 @@ static AstNode* parse_inner(Parser *p) {
     if (want_local || want_static) parser_advance(p);
 
     if (!want_local && !want_static) {
-        if (check(p, TOK_IF))           return parse_if_stmt(p);
-        if (check(p, TOK_WHILE))        return parse_while_stmt(p);
-        if (check(p, TOK_SWITCH))       return parse_switch_stmt(p);
-        if (check(p, TOK_FOR))          return parse_for_dispatch(p);
-        if (check_fn(p))                return parse_fn(p);
-
+        if (check(p, TOK_IF))       return parse_if_stmt(p);
+        if (check(p, TOK_WHILE))    return parse_while_stmt(p);
+        if (check(p, TOK_SWITCH))   return parse_switch_stmt(p);
+        if (check(p, TOK_FOR))      return parse_for_dispatch(p);
+        if (check(p, TOK_FN)) {
+            if (peek_at(p, 1).type == TOK_LPAREN) return parse_lambda(p);
+            return parse_fn_decl(p);
+        }
         if (check(p, TOK_IMPORT))       return parse_import(p);
         if (check(p, TOK_PRIMITIVE))    return parse_primitive(p);
-        if (check(p, TOK_PHRASE))       return parse_phrase(p);
         if (check(p, TOK_PROCTIME))     return parse_proctime_stmt(p);
         if (check(p, TOK_METHOD))       return parse_method(p);
         if (check(p, TOK_STRUCT))       return parse_struct_decl(p);
         if (check(p, TOK_ENUM))         return parse_enum_decl(p);
         if (check(p, TOK_TRY))          return parse_try_stmt(p);
 
-        if (check(p, TOK_RETURN))       return parse_return_stmt(p, p->current.line, p->current.col);
-        if (check(p, TOK_DEFER))        return parse_defer_stmt(p, p->current.line, p->current.col);
-        if (check(p, TOK_BREAK))        return parse_break_stmt(p, p->current.line, p->current.col);
-        if (check(p, TOK_CONTINUE))     return parse_continue_stmt(p, p->current.line, p->current.col);
-        if (check(p, TOK_FALLTHROUGH))  return parse_fallthrough_stmt(p, p->current.line, p->current.col);
-        if (check(p, TOK_IDENT) && is_keyword(p->current.start, p->current.len)) return parse_word(p);
+        if (check(p, TOK_RETURN))      return parse_return_stmt(p, p->current.line, p->current.col);
+        if (check(p, TOK_DEFER))       return parse_defer_stmt(p, p->current.line, p->current.col);
+        if (check(p, TOK_BREAK))       return parse_break_stmt(p, p->current.line, p->current.col);
+        if (check(p, TOK_CONTINUE))    return parse_continue_stmt(p, p->current.line, p->current.col);
+        if (check(p, TOK_FALLTHROUGH)) return parse_fallthrough_stmt(p, p->current.line, p->current.col);
     }
 
     bool current_is_type_name = is_type_name_token(p->current);
@@ -96,26 +96,6 @@ static AstNode* parse_block(Parser *p) {
     return make_block(&stmts, line, col);
 }
 
-static AstNode* parse_word(Parser *p) {
-    int line = p->current.line, col = p->current.col;
-    const char *name = p->current.start;
-    int name_len = p->current.len;
-    parser_advance(p);
-
-    AstList args;
-    ast_list_init(&args);
-    while (!check(p, TOK_LBRACE) && !check(p, TOK_EOF)) {
-        ast_list_push(&args, parse_expression(p));
-        if (!match(p, TOK_COMMA)) break;
-    }
-
-    AstNode *block = check(p, TOK_LBRACE) ? parse_block(p) : nullptr;
-
-    int arg_count;
-    AstNode **arg_arr = ast_list_finish(&args, &arg_count);
-    return make_word(name, name_len, arg_arr, arg_count, block, line, col);
-}
-
 static AstNode* parse_program(Parser *p) {
     int line = p->current.line, col = p->current.col;
 
@@ -145,8 +125,8 @@ static AstNode* parse_expr_statement(Parser *p) {
         }
 
         return is_immutable
-            ? make_immut_decl(expr->name, expr->len, false, nullptr, value, line, col)
-            : make_mut_decl(expr->name, expr->len, false, nullptr, value, line, col);
+            ? make_immut_decl(expr->as.ident.name, expr->as.ident.len, false, nullptr, value, line, col)
+            : make_mut_decl(expr->as.ident.name, expr->as.ident.len, false, nullptr, value, line, col);
     }
 
     if (is_assign_op(p->current.type)) {
@@ -160,33 +140,23 @@ static AstNode* parse_expr_statement(Parser *p) {
             parser_error(p, "expected newline or ';' after assignment");
         }
 
-        if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl && !check(p, TOK_RBRACE) && !check(p, TOK_EOF) && !check(p, TOK_ELSE)) {
-            parser_error(p, "expected newline or ';' after assignment");
-        }
-
         return make_assign(expr, op, value, line, col);
     }
 
-    if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl && !check(p, TOK_RBRACE) && !check(p, TOK_EOF) && !check(p, TOK_ELSE)) {
+    if (match(p, TOK_SEMICOLON)) {
+    } else if (p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF) || check(p, TOK_ELSE)) {
+    } else {
         parser_error(p, "expected newline or ';' after expression statement");
     }
 
     return make_expr_stmt(expr, line, col);
 }
 
-static AstNode* parse_condition(Parser *p) {
-    bool saved = p->no_fn_lit;
-    p->no_fn_lit = true;
-    AstNode *e = parse_expression(p);
-    p->no_fn_lit = saved;
-    return e;
-}
-
 static AstNode* parse_if_stmt(Parser *p) {
     int line = p->current.line, col = p->current.col;
     expect(p, TOK_IF, "expected 'if'");
 
-    AstNode *cond = parse_condition(p);
+    AstNode *cond = parse_expression(p);
     AstNode *then_branch = parse_if_branch(p);
 
     AstNode *else_branch = nullptr;
@@ -226,7 +196,7 @@ static AstNode* parse_while_stmt(Parser *p) {
     int line = p->current.line, col = p->current.col;
     expect(p, TOK_WHILE, "expected 'while'");
 
-    AstNode *cond = parse_condition(p);
+    AstNode *cond = parse_expression(p);
     AstNode *body = parse_block(p);
 
     return make_while_stmt(cond, body, line, col);
@@ -236,11 +206,11 @@ static AstNode* parse_switch_stmt(Parser *p) {
     int line = p->current.line, col = p->current.col;
     expect(p, TOK_SWITCH, "expected 'switch'");
 
-    AstNode *scrutinee = parse_condition(p);
+    AstNode *scrutinee = parse_expression(p);
     AstNode *guard = nullptr;
-    if (scrutinee->type == BINARY && scrutinee->op == TOK_IN) {
-        guard = scrutinee->right;
-        scrutinee = scrutinee->left;
+    if (scrutinee->type == BINARY && scrutinee->as.binary.op == TOK_IN) {
+        guard = scrutinee->as.binary.right;
+        scrutinee = scrutinee->as.binary.left;
     }
     AstList cases;
     ast_list_init(&cases);
@@ -355,7 +325,7 @@ static AstNode* parse_for_in(Parser *p, int line, int col, bool has_parens) {
     int val_len = p->previous.len;
 
     expect(p, TOK_IN, "expected 'in' in for-in loop");
-    AstNode *iterable = parse_condition(p);
+    AstNode *iterable = parse_expression(p);
 
     if (has_parens) {
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
@@ -372,7 +342,7 @@ static AstNode* parse_for_cstyle(Parser *p, int line, int col, bool has_parens) 
     AstNode *cond = parse_expression(p);
     expect(p, TOK_SEMICOLON, "expected ';' after for-loop condition");
 
-    AstNode *incr = parse_condition(p);
+    AstNode *incr = parse_expression(p);
 
     if (has_parens) {
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
@@ -404,7 +374,7 @@ static AstNode* parse_for_in_single(Parser *p, int line, int col, bool has_paren
     int name_len = p->previous.len;
 
     expect(p, TOK_IN, "expected 'in' in for-in loop");
-    AstNode *iterable = parse_condition(p);
+    AstNode *iterable = parse_expression(p);
 
     if (has_parens) {
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");

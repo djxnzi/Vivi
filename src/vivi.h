@@ -25,7 +25,7 @@ inline bool read_file(const char *path, std::string &out) {
 
 // Vivi forward decl
 struct Vivi {
-    const char* version = "0.02a";
+    const char* version = "0.1";
     std::string root_dir;
     const bool exit_code_debug = false;
     void processFlags(int argc, char* argv[], std::string& outScriptPath, const char **outScriptArgs, int *outScriptArgCount);
@@ -48,22 +48,22 @@ inline Vivi vivi;
 #include <primitive.h>
 #include <proctime.h>
 
-#include <arena.cc>
-#include <lexer.cc>
-#include <ast.cc>
-#include <parserHelpers.cc>
-#include <parseExpr.cc>
-#include <parseDecl.cc>
-#include <parseStmt.cc>
-#include <env.cc>
-#include <values.cc>
-#include <registry.cc>
-#include <eval.cc>
-#include <exec.cc>
-#include <error.cc>
-#include <primitive.cc>
-#include <proctimeGraph.cc>
-#include <proctime.cc>
+#include <arena.c>
+#include <lexer.c>
+#include <ast.c>
+#include <parserHelpers.c>
+#include <parseExpr.c>
+#include <parseDecl.c>
+#include <parseStmt.c>
+#include <env.c>
+#include <values.c>
+#include <registry.c>
+#include <eval.c>
+#include <exec.c>
+#include <error.c>
+#include <primitive.c>
+#include <proctimeGraph.c>
+#include <proctime.c>
 
-#include <tooling.cc>
-#include <runtime.cc>
+#include <tooling.c>
+#include <runtime.c>

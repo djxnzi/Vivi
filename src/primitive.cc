@@ -1,6 +1,6 @@
 static void resolve_primitives(AstNode *program) {
-    for (int i = 0; i < program->stmt_count; i++) {
-        AstNode *stmt = program->stmts[i];
+    for (int i = 0; i < program->as.program.stmt_count; i++) {
+        AstNode *stmt = program->as.program.stmts[i];
         if (stmt->type == PRIMITIVE) {
             register_primitive(stmt);
         }
@@ -8,24 +8,24 @@ static void resolve_primitives(AstNode *program) {
 }
 
 static Value axiom_error(AstNode *decl) {
-    print_err("primitive_contract", decl->len, decl->name);
+    print_err("primitive_contract", decl->as.primitive.len, decl->as.primitive.name);
     return make_null();
 }
 
 static SigTag classify(AstNode *type_expr) {
     if (!type_expr) return SIG_ABSENT;
     if (type_expr->type == ARRAY_TYPE) return SIG_ARRAY;
-    if (type_expr->type == UNARY && type_expr->op == TOK_STAR) return SIG_PTR;
+    if (type_expr->type == UNARY && type_expr->as.unary.op == TOK_STAR) return SIG_PTR;
 
     ValueType vt;
-    if (ident_is_type_name(type_expr->name, type_expr->len, &vt)) {
-        if (vt == ValueType::Int) return type_expr->name[0] == 'u' ? SIG_UINT : SIG_INT;
+    if (ident_is_type_name(type_expr->as.ident.name, type_expr->as.ident.len, &vt)) {
+        if (vt == ValueType::Int) return type_expr->as.ident.name[0] == 'u' ? SIG_UINT : SIG_INT;
         if (vt == ValueType::Float) return SIG_FLOAT;
         if (vt == ValueType::Str || vt == ValueType::Rune) return SIG_STR;
         return SIG_GENERIC;
     }
 
-    if (find_struct_decl(type_expr->name, type_expr->len)) return SIG_STRUCT;
+    if (find_struct_decl(type_expr->as.ident.name, type_expr->as.ident.len)) return SIG_STRUCT;
     return SIG_GENERIC;
 }
 
@@ -215,12 +215,12 @@ static Value axiom_key_set(AstNode *decl, Value *args, int arg_count) {
 
 // Interpreter signature matching
 static void* resolve_axiom_interpreter(AstNode *decl) {
-    int n = decl->param_count;
-    AstNode **p = decl->params;
+    int n = decl->as.primitive.param_count;
+    AstNode **p = decl->as.primitive.params;
 
-    SigTag r0  = n > 0 ? classify(p[0]->type_expr) : SIG_ABSENT;
-    SigTag a1  = n > 1 ? classify(p[1]->type_expr) : SIG_ABSENT;
-    SigTag ret = classify(decl->return_type);
+    SigTag r0  = n > 0 ? classify(p[0]->as.field.type_expr) : SIG_ABSENT;
+    SigTag a1  = n > 1 ? classify(p[1]->as.field.type_expr) : SIG_ABSENT;
+    SigTag ret = classify(decl->as.primitive.return_type);
     bool receiver = r0 == SIG_ARRAY || r0 == SIG_STR || r0 == SIG_STRUCT || r0 == SIG_ABSENT;
 
     if (n == 1 && receiver && ret == SIG_UINT) return (void*)axiom_len;
@@ -259,52 +259,46 @@ static void* resolve_axiom(AstNode *decl) {
 }
 
 static Value call_primitive(AstNode *decl, Value *args, int arg_count) {
-    int expected = decl->param_count;
+    int expected = decl->as.primitive.param_count;
 
     for (int i = 0; i < expected; i++) {
-        if (decl->params[i]->is_variadic) {
+        if (decl->as.primitive.params[i]->as.field.is_variadic) {
             print_err("primitive_variadic");
             return make_null();
         }
     }
 
     if (arg_count != expected) {
-        print_err("primitive_arity", decl->len, decl->name, expected, arg_count);
+        print_err("primitive_arity", decl->as.primitive.len, decl->as.primitive.name, expected, arg_count);
         return make_null();
     }
 
-    if (decl->body) {
-        ObjFn *fn = (ObjFn*)decl->fn_obj;
-        if (!fn) { print_err("primitive_unavailable", decl->len, decl->name); return make_null(); }
-        return call_function(fn, args, arg_count, nullptr, 0, 0, nullptr);
-    }
-
     for (int i = 0; i < expected; i++) {
-        AstNode *param = decl->params[i];
+        AstNode *param = decl->as.primitive.params[i];
         Value checked = args[i];
-        if (param->type_expr) {
+        if (param->as.field.type_expr) {
             if (args[i].type == ValueType::Null) {
-                print_err("primitive_null_arg", i + 1, decl->len, decl->name);
+                print_err("primitive_null_arg", i + 1, decl->as.primitive.len, decl->as.primitive.name);
                 return make_null();
             }
-            if (!value_matches_type(param->type_expr, args[i], &checked)) {
-                print_err("primitive_arg_type", i + 1, decl->len, decl->name);
+            if (!value_matches_type(param->as.field.type_expr, args[i], &checked)) {
+                print_err("primitive_arg_type", i + 1, decl->as.primitive.len, decl->as.primitive.name);
                 return make_null();
             }
         }
         args[i] = checked;
     }
 
-    Axiom implementation = (Axiom)decl->resolved;
+    Axiom implementation = (Axiom)decl->as.primitive.resolved;
     if (!implementation) {
-        print_err("primitive_unavailable", decl->len, decl->name);
+        print_err("primitive_unavailable", decl->as.primitive.len, decl->as.primitive.name);
         return make_null();
     }
 
     Value result = implementation(decl, args, arg_count);
-    if (decl->return_type &&
-        !return_type_matches(decl->return_type, result)) {
-        print_err("primitive_return_type", decl->len, decl->name);
+    if (decl->as.primitive.return_type &&
+        !return_type_matches(decl->as.primitive.return_type, result)) {
+        print_err("primitive_return_type", decl->as.primitive.len, decl->as.primitive.name);
         return make_null();
     }
     return result;

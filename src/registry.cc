@@ -1,65 +1,25 @@
 // Primitive
 static void register_primitive(AstNode *decl) {
-    AstNode *existing = find_primitive(decl->name, decl->len);
+    AstNode *existing = find_primitive(decl->as.primitive.name, decl->as.primitive.len);
     if (existing) {
         if (existing != decl)
-            print_err("duplicate_primitive", decl->len, decl->name);
+            print_err("duplicate_primitive", decl->as.primitive.len, decl->as.primitive.name);
         return;
     }
     primitive_decls = (AstNode**)grow_array(primitive_decls, primitive_decl_count, &primitive_decl_capacity, sizeof(AstNode*), 8);
     primitive_decls[primitive_decl_count++] = decl;
-    if (!decl->body)
-        decl->resolved = resolve_axiom(decl);
+    decl->as.primitive.resolved = resolve_axiom(decl);
 }
 
 static AstNode* find_primitive(const char *name, int len) {
     for (int i = 0; i < primitive_decl_count; i++) {
         AstNode *d = primitive_decls[i];
-        if (d->file != current_file) continue;
-        if (d->len == len && strncmp(d->name, name, len) == 0) {
+        if (d->as.primitive.file != current_file) continue;
+        if (d->as.primitive.len == len && strncmp(d->as.primitive.name, name, len) == 0) {
             return d;
         }
     }
     return nullptr;
-}
-
-// Words
-static void register_keyword(const char *name, int len) {
-    if (is_keyword(name, len)) return;
-    new_keywords = (NewKeyword*)grow_array(new_keywords, new_keyword_count, &new_keyword_capacity, sizeof(NewKeyword), 8);
-    new_keywords[new_keyword_count].name = name;
-    new_keywords[new_keyword_count].len = len;
-    new_keyword_count++;
-}
-
-static bool is_keyword(const char *name, int len) {
-    for (int i = 0; i < new_keyword_count; i++)
-        if (new_keywords[i].len == len && strncmp(new_keywords[i].name, name, len) == 0) return true;
-    return false;
-}
-
-static void find_keywords(const char *src) {
-    Lexer lx = { src, src, 1, 1 };
-    Token t = next_token(&lx);
-    while (t.type != TOK_EOF) {
-        if (t.type == TOK_PHRASE) {
-            Token name = next_token(&lx);
-            Token cc   = next_token(&lx);
-            if (name.type == TOK_IDENT && cc.type == TOK_IMMUT && next_token(&lx).type == TOK_LPAREN) {
-                bool has_block = false;
-                int depth = 1;
-                while (depth > 0) {
-                    Token q = next_token(&lx);
-                    if (q.type == TOK_EOF) break;
-                    if (q.type == TOK_LPAREN) depth++;
-                    else if (q.type == TOK_RPAREN) depth--;
-                    else if (q.type == TOK_IDENT && q.len == 5 && strncmp(q.start, "block", 5) == 0) has_block = true;
-                }
-                if (has_block) register_keyword(name.start, name.len);
-            }
-        }
-        t = next_token(&lx);
-    }
 }
 
 // Method
@@ -102,10 +62,10 @@ static ObjFn* find_method(const char *name, int len) {
 
 // Structs
 static void register_struct_decl(AstNode *decl) {
-    AstNode *existing = find_struct_decl(decl->name, decl->len);
+    AstNode *existing = find_struct_decl(decl->as.struct_decl.name, decl->as.struct_decl.len);
     if (existing) {
         if (existing != decl)
-            print_err("duplicate_struct", decl->len, decl->name);
+            print_err("duplicate_struct", decl->as.struct_decl.len, decl->as.struct_decl.name);
         return;
     }
     struct_decls = (AstNode**)grow_array(struct_decls, struct_decl_count, &struct_decl_capacity, sizeof(AstNode*), 8);
@@ -115,7 +75,7 @@ static void register_struct_decl(AstNode *decl) {
 static AstNode* find_struct_decl(const char *name, int len) {
     for (int i = 0; i < struct_decl_count; i++) {
         AstNode *d = struct_decls[i];
-        if (d->len == len && strncmp(d->name, name, len) == 0) {
+        if (d->as.struct_decl.len == len && strncmp(d->as.struct_decl.name, name, len) == 0) {
             return d;
         }
     }
@@ -123,9 +83,9 @@ static AstNode* find_struct_decl(const char *name, int len) {
 }
 
 static bool label_matches(AstNode *label, Value scrutinee) {
-    if (label->type == BINARY && label->op == TOK_SLICE) {
-        Value lo = eval_expr(label->left);
-        Value hi = eval_expr(label->right);
+    if (label->type == BINARY && label->as.binary.op == TOK_SLICE) {
+        Value lo = eval_expr(label->as.binary.left);
+        Value hi = eval_expr(label->as.binary.right);
         if (!is_numeric(scrutinee) || !is_numeric(lo) || !is_numeric(hi)) {
             print_err("non_numeric_range");
             return false;
@@ -134,15 +94,15 @@ static bool label_matches(AstNode *label, Value scrutinee) {
     }
     if (label->type == IDENT) {
         ValueType vt;
-        if (ident_is_type_name(label->name, label->len, &vt)) {
+        if (ident_is_type_name(label->as.ident.name, label->as.ident.len, &vt)) {
             return scrutinee.type == vt;
         }
-        AstNode *struct_decl = find_struct_decl(label->name, label->len);
+        AstNode *struct_decl = find_struct_decl(label->as.ident.name, label->as.ident.len);
         if (struct_decl) {
             if (scrutinee.type != ValueType::Struct) return false;
             ObjStruct *s = (ObjStruct*)scrutinee.as.obj;
-            return s->type_name && s->type_name_len == label->len &&
-                strncmp(s->type_name, label->name, label->len) == 0;
+            return s->type_name && s->type_name_len == label->as.ident.len &&
+                strncmp(s->type_name, label->as.ident.name, label->as.ident.len) == 0;
         }
     }
     return values_equal(eval_expr(label), scrutinee);
@@ -150,18 +110,18 @@ static bool label_matches(AstNode *label, Value scrutinee) {
 
 // Enums
 static void register_enum_decl(AstNode *decl) {
-    int n = decl->variant_count;
+    int n = decl->as.enum_decl.variant_count;
     Value *values = n ? (Value*)arena_alloc(sizeof(Value) * n) : nullptr;
     Value prev = make_int(-1);
     for (int i = 0; i < n; i++) {
-        AstNode *variant = decl->variants[i];
-        if (variant->value) {
-            values[i] = eval_expr(variant->value);
+        AstNode *variant = decl->as.enum_decl.variants[i];
+        if (variant->as.field.value) {
+            values[i] = eval_expr(variant->as.field.value);
         } else if (prev.type == ValueType::Int) {
             values[i] = make_int(prev.as.i + 1);
         } else {
             print_err("enum_variant",
-                variant->len, variant->name);
+                variant->as.field.len, variant->as.field.name);
             values[i] = make_null();
         }
         prev = values[i];
@@ -176,7 +136,7 @@ static void register_enum_decl(AstNode *decl) {
 static Enum* find_enum_decl(const char *name, int len) {
     for (int i = 0; i < enum_decl_count; i++) {
         AstNode *d = enum_decls[i].decl;
-        if (d->len == len && strncmp(d->name, name, len) == 0) {
+        if (d->as.enum_decl.len == len && strncmp(d->as.enum_decl.name, name, len) == 0) {
             return &enum_decls[i];
         }
     }

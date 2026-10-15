@@ -1,9 +1,6 @@
 static Value return_value;
 static int current_line = 0, current_col = 0;
-static Value* resolve_place(AstNode *node, bool create = false, bool *fresh = nullptr);
-static Value* struct_field_slot(Value obj, const char *name, int len);
-static bool array_locate(ObjArray *a, Value idx, int *pos);
-static void assign_apply(Value *slot, TokenType op, Value rhs, bool fresh);
+static Value* get_address(AstNode *node);
 static Value auto_deref(AstNode *obj_node, Value obj);
 static Value eval_expr(AstNode *node);
 static Value eval_block_as_expr(AstNode *block);
