@@ -1,22 +1,22 @@
 // Primitive
 static void register_primitive(AstNode *decl) {
-    AstNode *existing = find_primitive(decl->as.primitive.name, decl->as.primitive.len);
+    AstNode *existing = find_primitive(decl->name, decl->len);
     if (existing) {
         if (existing != decl)
-            print_err("duplicate_primitive", decl->as.primitive.len, decl->as.primitive.name);
+            print_err("duplicate_primitive", decl->len, decl->name);
         return;
     }
     primitive_decls = (AstNode**)grow_array(primitive_decls, primitive_decl_count, &primitive_decl_capacity, sizeof(AstNode*), 8);
     primitive_decls[primitive_decl_count++] = decl;
-    if (!decl->as.primitive.body)
-        decl->as.primitive.resolved = resolve_axiom(decl);
+    if (!decl->body)
+        decl->resolved = resolve_axiom(decl);
 }
 
 static AstNode* find_primitive(const char *name, int len) {
     for (int i = 0; i < primitive_decl_count; i++) {
         AstNode *d = primitive_decls[i];
-        if (d->as.primitive.file != current_file) continue;
-        if (d->as.primitive.len == len && strncmp(d->as.primitive.name, name, len) == 0) {
+        if (d->file != current_file) continue;
+        if (d->len == len && strncmp(d->name, name, len) == 0) {
             return d;
         }
     }
@@ -102,10 +102,10 @@ static ObjFn* find_method(const char *name, int len) {
 
 // Structs
 static void register_struct_decl(AstNode *decl) {
-    AstNode *existing = find_struct_decl(decl->as.struct_decl.name, decl->as.struct_decl.len);
+    AstNode *existing = find_struct_decl(decl->name, decl->len);
     if (existing) {
         if (existing != decl)
-            print_err("duplicate_struct", decl->as.struct_decl.len, decl->as.struct_decl.name);
+            print_err("duplicate_struct", decl->len, decl->name);
         return;
     }
     struct_decls = (AstNode**)grow_array(struct_decls, struct_decl_count, &struct_decl_capacity, sizeof(AstNode*), 8);
@@ -115,7 +115,7 @@ static void register_struct_decl(AstNode *decl) {
 static AstNode* find_struct_decl(const char *name, int len) {
     for (int i = 0; i < struct_decl_count; i++) {
         AstNode *d = struct_decls[i];
-        if (d->as.struct_decl.len == len && strncmp(d->as.struct_decl.name, name, len) == 0) {
+        if (d->len == len && strncmp(d->name, name, len) == 0) {
             return d;
         }
     }
@@ -123,9 +123,9 @@ static AstNode* find_struct_decl(const char *name, int len) {
 }
 
 static bool label_matches(AstNode *label, Value scrutinee) {
-    if (label->type == BINARY && label->as.binary.op == TOK_SLICE) {
-        Value lo = eval_expr(label->as.binary.left);
-        Value hi = eval_expr(label->as.binary.right);
+    if (label->type == BINARY && label->op == TOK_SLICE) {
+        Value lo = eval_expr(label->left);
+        Value hi = eval_expr(label->right);
         if (!is_numeric(scrutinee) || !is_numeric(lo) || !is_numeric(hi)) {
             print_err("non_numeric_range");
             return false;
@@ -134,15 +134,15 @@ static bool label_matches(AstNode *label, Value scrutinee) {
     }
     if (label->type == IDENT) {
         ValueType vt;
-        if (ident_is_type_name(label->as.ident.name, label->as.ident.len, &vt)) {
+        if (ident_is_type_name(label->name, label->len, &vt)) {
             return scrutinee.type == vt;
         }
-        AstNode *struct_decl = find_struct_decl(label->as.ident.name, label->as.ident.len);
+        AstNode *struct_decl = find_struct_decl(label->name, label->len);
         if (struct_decl) {
             if (scrutinee.type != ValueType::Struct) return false;
             ObjStruct *s = (ObjStruct*)scrutinee.as.obj;
-            return s->type_name && s->type_name_len == label->as.ident.len &&
-                strncmp(s->type_name, label->as.ident.name, label->as.ident.len) == 0;
+            return s->type_name && s->type_name_len == label->len &&
+                strncmp(s->type_name, label->name, label->len) == 0;
         }
     }
     return values_equal(eval_expr(label), scrutinee);
@@ -150,18 +150,18 @@ static bool label_matches(AstNode *label, Value scrutinee) {
 
 // Enums
 static void register_enum_decl(AstNode *decl) {
-    int n = decl->as.enum_decl.variant_count;
+    int n = decl->variant_count;
     Value *values = n ? (Value*)arena_alloc(sizeof(Value) * n) : nullptr;
     Value prev = make_int(-1);
     for (int i = 0; i < n; i++) {
-        AstNode *variant = decl->as.enum_decl.variants[i];
-        if (variant->as.field.value) {
-            values[i] = eval_expr(variant->as.field.value);
+        AstNode *variant = decl->variants[i];
+        if (variant->value) {
+            values[i] = eval_expr(variant->value);
         } else if (prev.type == ValueType::Int) {
             values[i] = make_int(prev.as.i + 1);
         } else {
             print_err("enum_variant",
-                variant->as.field.len, variant->as.field.name);
+                variant->len, variant->name);
             values[i] = make_null();
         }
         prev = values[i];
@@ -176,7 +176,7 @@ static void register_enum_decl(AstNode *decl) {
 static Enum* find_enum_decl(const char *name, int len) {
     for (int i = 0; i < enum_decl_count; i++) {
         AstNode *d = enum_decls[i].decl;
-        if (d->as.enum_decl.len == len && strncmp(d->as.enum_decl.name, name, len) == 0) {
+        if (d->len == len && strncmp(d->name, name, len) == 0) {
             return &enum_decls[i];
         }
     }

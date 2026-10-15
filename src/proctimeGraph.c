@@ -13,37 +13,37 @@ static void pt_collect_refs(AstNode *expr, ProcNode *owner) {
             break;
 
         case IDENT:
-            pt_add_dep(owner, expr->as.ident.name, expr->as.ident.len);
+            pt_add_dep(owner, expr->name, expr->len);
             break;
 
         case UNARY:
         case POSTFIX:
-            pt_collect_refs(expr->as.unary.operand, owner);
+            pt_collect_refs(expr->operand, owner);
             break;
 
         case BINARY:
-            pt_collect_refs(expr->as.binary.left, owner);
-            pt_collect_refs(expr->as.binary.right, owner);
+            pt_collect_refs(expr->left, owner);
+            pt_collect_refs(expr->right, owner);
             break;
 
         case TERNARY:
-            pt_collect_refs(expr->as.ternary.cond, owner);
-            pt_collect_refs(expr->as.ternary.then_expr, owner);
-            pt_collect_refs(expr->as.ternary.else_expr, owner);
+            pt_collect_refs(expr->cond, owner);
+            pt_collect_refs(expr->then_expr, owner);
+            pt_collect_refs(expr->else_expr, owner);
             break;
 
         case CALL:
-            pt_collect_refs(expr->as.call.callee, owner);
-            for (int i = 0; i < expr->as.call.arg_count; i++)
-                pt_collect_refs(expr->as.call.args[i], owner);
+            pt_collect_refs(expr->callee, owner);
+            for (int i = 0; i < expr->arg_count; i++)
+                pt_collect_refs(expr->args[i], owner);
             break;
 
         case ARRAY_LIT:
-            for (int i = 0; i < expr->as.array_lit.count; i++) {
-                AstNode *item = expr->as.array_lit.items[i];
+            for (int i = 0; i < expr->count; i++) {
+                AstNode *item = expr->items[i];
                 if (item->type == ARRAY_ENTRY) {
-                    pt_collect_refs(item->as.array_entry.key, owner);
-                    pt_collect_refs(item->as.array_entry.value, owner);
+                    pt_collect_refs(item->key, owner);
+                    pt_collect_refs(item->value, owner);
                 } else {
                     pt_collect_refs(item, owner);
                 }
@@ -51,18 +51,18 @@ static void pt_collect_refs(AstNode *expr, ProcNode *owner) {
             break;
 
         case INDEX:
-            pt_collect_refs(expr->as.index.object, owner);
-            for (int i = 0; i < expr->as.index.index_count; i++)
-                pt_collect_refs(expr->as.index.indices[i], owner);
+            pt_collect_refs(expr->object, owner);
+            for (int i = 0; i < expr->index_count; i++)
+                pt_collect_refs(expr->indices[i], owner);
             break;
 
         case FIELD_ACCESS:
-            pt_collect_refs(expr->as.field_access.object, owner);
+            pt_collect_refs(expr->object, owner);
             break;
 
         case STRUCT_LIT:
-            for (int i = 0; i < expr->as.struct_lit.count; i++)
-                pt_collect_refs(expr->as.struct_lit.fields[i]->as.field.value, owner);
+            for (int i = 0; i < expr->count; i++)
+                pt_collect_refs(expr->fields[i]->value, owner);
             break;
 
         default:
@@ -93,9 +93,9 @@ static void pt_add_enum_node(const char *name, int len, AstNode *enum_decl, AstN
     node->dep_count = node->dep_capacity = 0;
     node->visiting = false;
     node->resolved = false;
-    for (int v = 0; v < enum_decl->as.enum_decl.variant_count; v++) {
-        AstNode *variant = enum_decl->as.enum_decl.variants[v];
-        if (variant->as.field.value) pt_collect_refs(variant->as.field.value, node);
+    for (int v = 0; v < enum_decl->variant_count; v++) {
+        AstNode *variant = enum_decl->variants[v];
+        if (variant->value) pt_collect_refs(variant->value, node);
     }
 }
 

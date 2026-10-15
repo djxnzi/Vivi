@@ -48,27 +48,27 @@ void print_ast(AstNode *node, int depth) {
 
     switch (node->type) {
         case INT_LIT:
-            printf("IntLit %ld\n", node->as.int_lit.value);
+            printf("IntLit %ld\n", node->int_val);
             break;
 
         case FLOAT_LIT:
-            printf("FloatLit %f\n", node->as.float_lit.value);
+            printf("FloatLit %f\n", node->float_val);
             break;
 
         case STR_LIT:
             printf("StrLit \"");
-            print_escaped(node->as.str_lit.start, node->as.str_lit.len);
+            print_escaped(node->text, node->len);
             printf("\"\n");
             break;
 
         case RUNE_LIT:
             printf("RuneLit '");
-            print_escaped(node->as.rune_lit.start, node->as.rune_lit.len);
+            print_escaped(node->text, node->len);
             printf("'\n");
             break;
 
         case BOOL_LIT:
-            printf("BoolLit %s\n", node->as.bool_lit.value ? "true" : "false");
+            printf("BoolLit %s\n", node->bool_val ? "true" : "false");
             break;
 
         case NULL_LIT:
@@ -76,154 +76,154 @@ void print_ast(AstNode *node, int depth) {
             break;
 
         case IDENT:
-            printf("Ident %.*s\n", node->as.ident.len, node->as.ident.name);
+            printf("Ident %.*s\n", node->len, node->name);
             break;
 
         case BINARY:
-            printf("Binary %s\n", token_name(node->as.binary.op));
-            print_ast(node->as.binary.left, depth + 1);
-            print_ast(node->as.binary.right, depth + 1);
+            printf("Binary %s\n", token_name(node->op));
+            print_ast(node->left, depth + 1);
+            print_ast(node->right, depth + 1);
             break;
 
         case UNARY:
-            printf("Unary %s\n", token_name(node->as.unary.op));
-            print_ast(node->as.unary.operand, depth + 1);
+            printf("Unary %s\n", token_name(node->op));
+            print_ast(node->operand, depth + 1);
             break;
 
         case POSTFIX:
-            printf("Postfix %s\n", token_name(node->as.unary.op));
-            print_ast(node->as.unary.operand, depth + 1);
+            printf("Postfix %s\n", token_name(node->op));
+            print_ast(node->operand, depth + 1);
             break;
 
         case TERNARY:
             printf("Ternary\n");
-            print_ast(node->as.ternary.cond, depth + 1);
-            print_ast(node->as.ternary.then_expr, depth + 1);
-            print_ast(node->as.ternary.else_expr, depth + 1);
+            print_ast(node->cond, depth + 1);
+            print_ast(node->then_expr, depth + 1);
+            print_ast(node->else_expr, depth + 1);
             break;
 
         case CALL:
             printf("Call\n");
             print_indent(depth + 1); printf("callee:\n");
-            print_ast(node->as.call.callee, depth + 2);
+            print_ast(node->callee, depth + 2);
             print_indent(depth + 1); printf("args:\n");
-            for (int i = 0; i < node->as.call.arg_count; i++) {
-                print_ast(node->as.call.args[i], depth + 2);
+            for (int i = 0; i < node->arg_count; i++) {
+                print_ast(node->args[i], depth + 2);
             }
             break;
 
         case INDEX:
             printf("Index\n");
-            print_ast(node->as.index.object, depth + 1);
+            print_ast(node->object, depth + 1);
             print_indent(depth + 1); printf("indices:\n");
-            for (int i = 0; i < node->as.index.index_count; i++) {
-                print_ast(node->as.index.indices[i], depth + 2);
+            for (int i = 0; i < node->index_count; i++) {
+                print_ast(node->indices[i], depth + 2);
             }
             break;
 
         case FIELD_ACCESS:
-            printf("FieldAccess .%.*s\n", node->as.field_access.len, node->as.field_access.field);
-            print_ast(node->as.field_access.object, depth + 1);
+            printf("FieldAccess .%.*s\n", node->len, node->field);
+            print_ast(node->object, depth + 1);
             break;
 
         case ARRAY_LIT:
-            printf("ArrayLit (%d items)\n", node->as.array_lit.count);
-            for (int i = 0; i < node->as.array_lit.count; i++) {
-                print_ast(node->as.array_lit.items[i], depth + 1);
+            printf("ArrayLit (%d items)\n", node->count);
+            for (int i = 0; i < node->count; i++) {
+                print_ast(node->items[i], depth + 1);
             }
             break;
 
         case ARRAY_ENTRY:
             printf("ArrayEntry\n");
             print_indent(depth + 1); printf("key:\n");
-            print_ast(node->as.array_entry.key, depth + 2);
+            print_ast(node->key, depth + 2);
             print_indent(depth + 1); printf("value:\n");
-            print_ast(node->as.array_entry.value, depth + 2);
+            print_ast(node->value, depth + 2);
             break;
 
         case STRUCT_LIT:
-            printf("StructLit (%d fields)\n", node->as.struct_lit.count);
-            for (int i = 0; i < node->as.struct_lit.count; i++) {
-                print_ast(node->as.struct_lit.fields[i], depth + 1);
+            printf("StructLit (%d fields)\n", node->count);
+            for (int i = 0; i < node->count; i++) {
+                print_ast(node->fields[i], depth + 1);
             }
             break;
 
         case FIELD:
-            printf("StructLitField %.*s\n", node->as.field.len, node->as.field.name);
-            print_ast(node->as.field.value, depth + 1);
+            printf("StructLitField %.*s\n", node->len, node->name);
+            print_ast(node->value, depth + 1);
             break;
 
         case IMMUT_DECL:
         case MUT_DECL:
             printf("%s %.*s\n",
                 node->type == IMMUT_DECL ? "ImmutDecl" : "MutDecl",
-                node->as.decl.len, node->as.decl.name);
-            if (node->as.decl.has_type_annotation) {
+                node->len, node->name);
+            if (node->has_type_annotation) {
                 print_indent(depth + 1); printf("type:\n");
-                print_ast(node->as.decl.type_annotation, depth + 2);
+                print_ast(node->type_annotation, depth + 2);
             }
-            print_ast(node->as.decl.value, depth + 1);
+            print_ast(node->value, depth + 1);
             break;
 
         case ASSIGN:
-            printf("Assign %s\n", token_name(node->as.assign.op));
-            print_ast(node->as.assign.target, depth + 1);
-            print_ast(node->as.assign.value, depth + 1);
+            printf("Assign %s\n", token_name(node->op));
+            print_ast(node->target, depth + 1);
+            print_ast(node->value, depth + 1);
             break;
 
         case EXPR_STMT:
             printf("ExprStmt\n");
-            print_ast(node->as.expr_stmt.expr, depth + 1);
+            print_ast(node->expr, depth + 1);
             break;
 
         case IF_STMT:
             printf("If\n");
             print_indent(depth + 1); printf("cond:\n");
-            print_ast(node->as.if_stmt.cond, depth + 2);
+            print_ast(node->cond, depth + 2);
             print_indent(depth + 1); printf("then:\n");
-            print_ast(node->as.if_stmt.then_branch, depth + 2);
-            if (node->as.if_stmt.else_branch) {
+            print_ast(node->then_branch, depth + 2);
+            if (node->else_branch) {
                 print_indent(depth + 1); printf("else:\n");
-                print_ast(node->as.if_stmt.else_branch, depth + 2);
+                print_ast(node->else_branch, depth + 2);
             }
             break;
 
         case BLOCK:
-            printf("Block (%d stmts)\n", node->as.block.stmt_count);
-            for (int i = 0; i < node->as.block.stmt_count; i++) {
-                print_ast(node->as.block.stmts[i], depth + 1);
+            printf("Block (%d stmts)\n", node->stmt_count);
+            for (int i = 0; i < node->stmt_count; i++) {
+                print_ast(node->stmts[i], depth + 1);
             }
             break;
 
         case PROGRAM:
-            printf("Program (%d stmts)\n", node->as.program.stmt_count);
-            for (int i = 0; i < node->as.program.stmt_count; i++) {
-                print_ast(node->as.program.stmts[i], depth + 1);
+            printf("Program (%d stmts)\n", node->stmt_count);
+            for (int i = 0; i < node->stmt_count; i++) {
+                print_ast(node->stmts[i], depth + 1);
             }
             break;
 
         case WHILE_STMT:
             printf("While\n");
             print_indent(depth + 1); printf("cond:\n");
-            print_ast(node->as.while_stmt.cond, depth + 2);
+            print_ast(node->cond, depth + 2);
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.while_stmt.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case SWITCH_STMT:
             printf("Switch\n");
 
             print_indent(depth + 1); printf("scrutinee:\n");
-            print_ast(node->as.switch_stmt.scrutinee, depth + 2);
+            print_ast(node->scrutinee, depth + 2);
 
-            if (node->as.switch_stmt.guard) {
+            if (node->guard) {
                 print_indent(depth + 1); printf("guard:\n");
-                print_ast(node->as.switch_stmt.guard, depth + 2);
+                print_ast(node->guard, depth + 2);
             }
 
             print_indent(depth + 1); printf("cases:\n");
-            for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
-                print_ast(node->as.switch_stmt.cases[i], depth + 2);
+            for (int i = 0; i < node->case_count; i++) {
+                print_ast(node->cases[i], depth + 2);
             }
             break;
 
@@ -231,10 +231,10 @@ void print_ast(AstNode *node, int depth) {
             printf("Case\n");
 
             print_indent(depth + 1); printf("label:\n");
-            print_ast(node->as.switch_case.label, depth + 2);
+            print_ast(node->label, depth + 2);
 
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.switch_case.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case DEFAULT_STMT:
@@ -244,50 +244,50 @@ void print_ast(AstNode *node, int depth) {
         case FOR_RANGE:
             printf("ForRange\n");
             print_indent(depth + 1); printf("start:\n");
-            print_ast(node->as.for_range.start, depth + 2);
-            if (node->as.for_range.end) {
+            print_ast(node->start, depth + 2);
+            if (node->end) {
                 print_indent(depth + 1); printf("end:\n");
-                print_ast(node->as.for_range.end, depth + 2);
+                print_ast(node->end, depth + 2);
             }
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.for_range.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case FOR_CSTYLE:
             printf("ForCStyle\n");
             print_indent(depth + 1); printf("init:\n");
-            print_ast(node->as.for_cstyle.init, depth + 2);
+            print_ast(node->init, depth + 2);
             print_indent(depth + 1); printf("cond:\n");
-            print_ast(node->as.for_cstyle.cond, depth + 2);
+            print_ast(node->cond, depth + 2);
             print_indent(depth + 1); printf("incr:\n");
-            print_ast(node->as.for_cstyle.incr, depth + 2);
+            print_ast(node->incr, depth + 2);
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.for_cstyle.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case FOR_IN:
             printf("ForIn\n");
             print_indent(depth + 1); printf("key: '%.*s'\n",
-                node->as.for_in.key_len, node->as.for_in.key_name);
+                node->key_len, node->key_name);
             print_indent(depth + 1); printf("val: '%.*s'\n",
-                node->as.for_in.val_len, node->as.for_in.val_name);
+                node->val_len, node->val_name);
             print_indent(depth + 1); printf("iterable:\n");
-            print_ast(node->as.for_in.iterable, depth + 2);
+            print_ast(node->iterable, depth + 2);
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.for_in.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case RETURN_STMT:
             printf("Return\n");
-            if (node->as.return_stmt.value) {
-                print_ast(node->as.return_stmt.value, depth + 1);
+            if (node->value) {
+                print_ast(node->value, depth + 1);
             }
             break;
 
         case DEFER_STMT:
             printf("Defer\n");
-            if (node->as.defer_stmt.value) {
-                print_ast(node->as.defer_stmt.value, depth + 1);
+            if (node->value) {
+                print_ast(node->value, depth + 1);
             }
             break;
 
@@ -305,91 +305,91 @@ void print_ast(AstNode *node, int depth) {
 
         case FN_DECL:
             printf("FnDecl %.*s (%d params)\n",
-                node->as.fn_decl.len, node->as.fn_decl.name, node->as.fn_decl.param_count);
-            if (node->as.fn_decl.return_type) {
+                node->len, node->name, node->param_count);
+            if (node->return_type) {
                 print_indent(depth + 1); printf("returns:\n");
-                print_ast(node->as.fn_decl.return_type, depth + 2);
+                print_ast(node->return_type, depth + 2);
             }
             print_indent(depth + 1); printf("params:\n");
-            for (int i = 0; i < node->as.fn_decl.param_count; i++) print_ast(node->as.fn_decl.params[i], depth + 2);
+            for (int i = 0; i < node->param_count; i++) print_ast(node->params[i], depth + 2);
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.fn_decl.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
             
         case METHOD:
             printf("Method %.*s (%d params%s)\n",
-                node->as.method.len, node->as.method.name, node->as.method.param_count,
-                node->as.method.is_mut ? ", mut" : "");
-            if (node->as.method.return_type) {
+                node->len, node->name, node->param_count,
+                node->is_mut ? ", mut" : "");
+            if (node->return_type) {
                 print_indent(depth + 1); printf("returns:\n");
-                print_ast(node->as.method.return_type, depth + 2);
+                print_ast(node->return_type, depth + 2);
             }
             print_indent(depth + 1); printf("params:\n");
-            for (int i = 0; i < node->as.method.param_count; i++) print_ast(node->as.method.params[i], depth + 2);
+            for (int i = 0; i < node->param_count; i++) print_ast(node->params[i], depth + 2);
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.method.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case FN_LIT:
-            printf("FnLit (%d params)\n", node->as.fn_decl.param_count);
-            if (node->as.fn_decl.return_type) {
+            printf("FnLit (%d params)\n", node->param_count);
+            if (node->return_type) {
                 print_indent(depth + 1); printf("returns:\n");
-                print_ast(node->as.fn_decl.return_type, depth + 2);
+                print_ast(node->return_type, depth + 2);
             }
             print_indent(depth + 1); printf("params:\n");
-            for (int i = 0; i < node->as.fn_decl.param_count; i++) {
-                print_ast(node->as.fn_decl.params[i], depth + 2);
+            for (int i = 0; i < node->param_count; i++) {
+                print_ast(node->params[i], depth + 2);
             }
 
             print_indent(depth + 1); printf("body:\n");
-            print_ast(node->as.fn_decl.body, depth + 2);
+            print_ast(node->body, depth + 2);
             break;
 
         case PARAM:
-            if (node->as.field.is_variadic) {
-                printf("Param ... (variadic%s)\n", node->as.field.type_expr ? ", typed" : "");
-                if (node->as.field.type_expr) {
+            if (node->is_variadic) {
+                printf("Param ... (variadic%s)\n", node->type_expr ? ", typed" : "");
+                if (node->type_expr) {
                     print_indent(depth + 1); printf("type:\n");
-                    print_ast(node->as.field.type_expr, depth + 2);
+                    print_ast(node->type_expr, depth + 2);
                 }
                 break;
             }
             printf("Param %.*s%s%s\n",
-                node->as.field.len, node->as.field.name,
-                node->as.field.type_expr ? " (typed)" : "",
-                node->as.field.value ? " (default)" : "");
-            if (node->as.field.type_expr) {
+                node->len, node->name,
+                node->type_expr ? " (typed)" : "",
+                node->value ? " (default)" : "");
+            if (node->type_expr) {
                 print_indent(depth + 1); printf("type:\n");
-                print_ast(node->as.field.type_expr, depth + 2);
+                print_ast(node->type_expr, depth + 2);
             }
-            if (node->as.field.value) {
+            if (node->value) {
                 print_indent(depth + 1); printf("default:\n");
-                print_ast(node->as.field.value, depth + 2);
+                print_ast(node->value, depth + 2);
             }
             break;
 
         case STRUCT_DECL:
             printf("StructDecl %.*s (%d fields)\n",
-                node->as.struct_decl.len, node->as.struct_decl.name,
-                node->as.struct_decl.field_count);
+                node->len, node->name,
+                node->field_count);
             print_indent(depth + 1); printf("fields:\n");
-            for (int i = 0; i < node->as.struct_decl.field_count; i++) {
-                print_ast(node->as.struct_decl.fields[i], depth + 2);
+            for (int i = 0; i < node->field_count; i++) {
+                print_ast(node->fields[i], depth + 2);
             }
             break;
 
         case ENUM_DECL:
             printf("EnumDecl %.*s (%d variants)\n",
-                node->as.enum_decl.len, node->as.enum_decl.name,
-                node->as.enum_decl.variant_count);
+                node->len, node->name,
+                node->variant_count);
             print_indent(depth + 1); printf("variants:\n");
-            for (int i = 0; i < node->as.enum_decl.variant_count; i++) {
-                AstNode *v = node->as.enum_decl.variants[i];
+            for (int i = 0; i < node->variant_count; i++) {
+                AstNode *v = node->variants[i];
                 print_indent(depth + 2);
-                printf("EnumVariant %.*s\n", v->as.field.len, v->as.field.name);
-                if (v->as.field.value) {
+                printf("EnumVariant %.*s\n", v->len, v->name);
+                if (v->value) {
                     print_indent(depth + 3); printf("value:\n");
-                    print_ast(v->as.field.value, depth + 4);
+                    print_ast(v->value, depth + 4);
                 } else {
                     print_indent(depth + 3); printf("(auto-assigned)\n");
                 }
@@ -398,65 +398,65 @@ void print_ast(AstNode *node, int depth) {
 
         case TYPE_BLOCK:
             printf("TypeBlock %s (%d decls)\n",
-                token_name(node->as.type_block.type_annotation),
-                node->as.type_block.decl_count);
-            for (int i = 0; i < node->as.type_block.decl_count; i++) {
-                print_ast(node->as.type_block.decls[i], depth + 1);
+                token_name(node->type_tok),
+                node->decl_count);
+            for (int i = 0; i < node->decl_count; i++) {
+                print_ast(node->decls[i], depth + 1);
             }
             break;
 
         case TRY_STMT:
             printf("Try\n");
             print_indent(depth + 1); printf("try:\n");
-            print_ast(node->as.try_stmt.try_block, depth + 2);
+            print_ast(node->try_block, depth + 2);
             print_indent(depth + 1); printf("catch (%.*s):\n",
-                node->as.try_stmt.catch_len, node->as.try_stmt.catch_name);
-            print_ast(node->as.try_stmt.catch_block, depth + 2);
+                node->catch_len, node->catch_name);
+            print_ast(node->catch_block, depth + 2);
             break;
 
         case IMPORT:
-            if (node->as.import.path) {
-                printf("Import '%.*s'", node->as.import.path_len, node->as.import.path);
-                if (node->as.import.alias) {
-                    printf(" as %.*s", node->as.import.alias_len, node->as.import.alias);
+            if (node->path) {
+                printf("Import '%.*s'", node->path_len, node->path);
+                if (node->alias) {
+                    printf(" as %.*s", node->alias_len, node->alias);
                 }
                 printf("\n");
             }
             break;
 
         case PROCTIME_BLOCK:
-            printf("ProctimeBlock (%d stmts)\n", node->as.proctime_block.stmt_count);
-            for (int i = 0; i < node->as.proctime_block.stmt_count; i++) {
-                print_ast(node->as.proctime_block.stmts[i], depth + 1);
+            printf("ProctimeBlock (%d stmts)\n", node->stmt_count);
+            for (int i = 0; i < node->stmt_count; i++) {
+                print_ast(node->stmts[i], depth + 1);
             }
             break;
 
         case PRIMITIVE:
             printf("%s %.*s (%d params)\n",
-                node->as.primitive.body ? "Phrase" : "Primitive",
-                node->as.primitive.len, node->as.primitive.name, node->as.primitive.param_count);
-            if (node->as.primitive.return_type) {
+                node->body ? "Phrase" : "Primitive",
+                node->len, node->name, node->param_count);
+            if (node->return_type) {
                 print_indent(depth + 1); printf("returns:\n");
-                print_ast(node->as.primitive.return_type, depth + 2);
+                print_ast(node->return_type, depth + 2);
             }
             print_indent(depth + 1); printf("params:\n");
-            for (int i = 0; i < node->as.primitive.param_count; i++) print_ast(node->as.primitive.params[i], depth + 2);
-            if (node->as.primitive.body) {
+            for (int i = 0; i < node->param_count; i++) print_ast(node->params[i], depth + 2);
+            if (node->body) {
                 print_indent(depth + 1); printf("body:\n");
-                print_ast(node->as.primitive.body, depth + 2);
+                print_ast(node->body, depth + 2);
             }
             break;
 
         case WORD:
-            printf("Word %.*s (%d args)\n", node->as.word.len, node->as.word.name, node->as.word.arg_count);
-            for (int i = 0; i < node->as.word.arg_count; i++) print_ast(node->as.word.args[i], depth + 1);
-            if (node->as.word.block) print_ast(node->as.word.block, depth + 1);
+            printf("Word %.*s (%d args)\n", node->len, node->name, node->arg_count);
+            for (int i = 0; i < node->arg_count; i++) print_ast(node->args[i], depth + 1);
+            if (node->block) print_ast(node->block, depth + 1);
             break;
 
         case ARRAY_TYPE:
             printf("ArrayType\n");
             print_indent(depth + 1); printf("element:\n");
-            print_ast(node->as.array_type.element_type, depth + 2);
+            print_ast(node->element_type, depth + 2);
             break;
 
         default:

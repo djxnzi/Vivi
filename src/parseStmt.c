@@ -145,8 +145,8 @@ static AstNode* parse_expr_statement(Parser *p) {
         }
 
         return is_immutable
-            ? make_immut_decl(expr->as.ident.name, expr->as.ident.len, false, nullptr, value, line, col)
-            : make_mut_decl(expr->as.ident.name, expr->as.ident.len, false, nullptr, value, line, col);
+            ? make_immut_decl(expr->name, expr->len, false, nullptr, value, line, col)
+            : make_mut_decl(expr->name, expr->len, false, nullptr, value, line, col);
     }
 
     if (is_assign_op(p->current.type)) {
@@ -160,12 +160,14 @@ static AstNode* parse_expr_statement(Parser *p) {
             parser_error(p, "expected newline or ';' after assignment");
         }
 
+        if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl && !check(p, TOK_RBRACE) && !check(p, TOK_EOF) && !check(p, TOK_ELSE)) {
+            parser_error(p, "expected newline or ';' after assignment");
+        }
+
         return make_assign(expr, op, value, line, col);
     }
 
-    if (match(p, TOK_SEMICOLON)) {
-    } else if (p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF) || check(p, TOK_ELSE)) {
-    } else {
+    if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl && !check(p, TOK_RBRACE) && !check(p, TOK_EOF) && !check(p, TOK_ELSE)) {
         parser_error(p, "expected newline or ';' after expression statement");
     }
 
@@ -236,9 +238,9 @@ static AstNode* parse_switch_stmt(Parser *p) {
 
     AstNode *scrutinee = parse_condition(p);
     AstNode *guard = nullptr;
-    if (scrutinee->type == BINARY && scrutinee->as.binary.op == TOK_IN) {
-        guard = scrutinee->as.binary.right;
-        scrutinee = scrutinee->as.binary.left;
+    if (scrutinee->type == BINARY && scrutinee->op == TOK_IN) {
+        guard = scrutinee->right;
+        scrutinee = scrutinee->left;
     }
     AstList cases;
     ast_list_init(&cases);

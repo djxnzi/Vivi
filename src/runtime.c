@@ -159,8 +159,8 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
 
         if (!base_p.had_error) {
             resolve_primitives(base_program);
-            for (int i = 0; i < base_program->as.program.stmt_count; i++)
-                exec_stmt(base_program->as.program.stmts[i]);
+            for (int i = 0; i < base_program->stmt_count; i++)
+                exec_stmt(base_program->stmts[i]);
         }
 
         current_file = saved_file;

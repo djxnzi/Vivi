@@ -18,13 +18,13 @@ static bool is_truthy(Value v) {
 
 static bool is_ident(AstNode *node, const char *name) {
     int len = (int)strlen(name);
-    return node->type == IDENT && node->as.ident.len == len
-        && strncmp(node->as.ident.name, name, (size_t)len) == 0;
+    return node->type == IDENT && node->len == len
+        && strncmp(node->name, name, (size_t)len) == 0;
 }
 
 static bool is_ext_annotation(AstNode *type_annotation) {
     return type_annotation && type_annotation->type == IDENT &&
-        type_annotation->as.ident.len == 3 && strncmp(type_annotation->as.ident.name, "ext", 3) == 0;
+        type_annotation->len == 3 && strncmp(type_annotation->name, "ext", 3) == 0;
 }
 
 static bool ident_is_type_name(const char *name, int len, ValueType *out_vt) {
@@ -114,7 +114,7 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
     if (type_annotation->type == ARRAY_TYPE) {
         if (v.type != ValueType::Array) return false;
 
-        AstNode *element_type = type_annotation->as.array_type.element_type;
+        AstNode *element_type = type_annotation->element_type;
 
         if (is_ident(element_type, "value")) {
             *out = v;
@@ -136,9 +136,9 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
     if (is_ext_annotation(type_annotation)) { *out = v; return true; }
     if (v.type == ValueType::Null) { *out = v; return true; }
 
-    if (type_annotation->type == UNARY && type_annotation->as.unary.op == TOK_STAR) {
+    if (type_annotation->type == UNARY && type_annotation->op == TOK_STAR) {
         if (v.type != ValueType::Int) return false;
-        AstNode *pointee = type_annotation->as.unary.operand;
+        AstNode *pointee = type_annotation->operand;
         if (pointee) {
             Value ignored;
             if (!value_matches_type(pointee, *(Value*)v.as.i, &ignored)) return false;
@@ -148,9 +148,9 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
     }
 
     ValueType expected_vt;
-    if (ident_is_type_name(type_annotation->as.ident.name, type_annotation->as.ident.len, &expected_vt)) {
-        const char *tname = type_annotation->as.ident.name;
-        int tlen = type_annotation->as.ident.len;
+    if (ident_is_type_name(type_annotation->name, type_annotation->len, &expected_vt)) {
+        const char *tname = type_annotation->name;
+        int tlen = type_annotation->len;
         if (expected_vt == ValueType::Int) {
             Value c;
             if (!coerce(v, &c)) return false;
@@ -179,23 +179,23 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
         return true;
     }
 
-    AstNode *struct_decl = find_struct_decl(type_annotation->as.ident.name, type_annotation->as.ident.len);
+    AstNode *struct_decl = find_struct_decl(type_annotation->name, type_annotation->len);
     if (struct_decl) {
         if (v.type != ValueType::Struct) return false;
         ObjStruct *s = (ObjStruct*)v.as.obj;
-        bool ok = s->type_name && s->type_name_len == type_annotation->as.ident.len &&
-            strncmp(s->type_name, type_annotation->as.ident.name, type_annotation->as.ident.len) == 0;
+        bool ok = s->type_name && s->type_name_len == type_annotation->len &&
+            strncmp(s->type_name, type_annotation->name, type_annotation->len) == 0;
         *out = v;
         return ok;
     }
 
     Value alias;
-    if (env_get(global_env, type_annotation->as.ident.name, type_annotation->as.ident.len, &alias) &&
+    if (env_get(global_env, type_annotation->name, type_annotation->len, &alias) &&
         alias.type == ValueType::Str) {
         ObjStr *s = (ObjStr*)alias.as.obj;
         AstNode tmp = *type_annotation;
-        tmp.as.ident.name = s->chars;
-        tmp.as.ident.len = s->len;
+        tmp.name = s->chars;
+        tmp.len = s->len;
         return value_matches_type(&tmp, v, out);
     }
 
@@ -205,8 +205,8 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
 
 static bool type_is_void(AstNode *rt) {
     if (is_ident(rt, "void")) return true;
-    if (rt->type == BINARY && rt->as.binary.op == TOK_PIPE)
-        return type_is_void(rt->as.binary.left) || type_is_void(rt->as.binary.right);
+    if (rt->type == BINARY && rt->op == TOK_PIPE)
+        return type_is_void(rt->left) || type_is_void(rt->right);
     return false;
 }
 
@@ -216,7 +216,7 @@ static bool return_type_matches(AstNode *return_type, Value result) {
     if (return_type->type == ARRAY_TYPE) {
         if (result.type != ValueType::Array) return false;
 
-        AstNode *element_type = return_type->as.array_type.element_type;
+        AstNode *element_type = return_type->element_type;
         if (is_ident(element_type, "value")) return true;
 
         ObjArray *array = (ObjArray*)result.as.obj;
@@ -228,34 +228,34 @@ static bool return_type_matches(AstNode *return_type, Value result) {
         return true;
     }
 
-    if (return_type->type == BINARY && return_type->as.binary.op == TOK_PIPE) {
-        return return_type_matches(return_type->as.binary.left, result)
-            || return_type_matches(return_type->as.binary.right, result);
+    if (return_type->type == BINARY && return_type->op == TOK_PIPE) {
+        return return_type_matches(return_type->left, result)
+            || return_type_matches(return_type->right, result);
     }
     if (return_type->type == RETURN_TYPE_LIST) {
         if (result.type != ValueType::Array) return false;
         ObjArray *a = (ObjArray*)result.as.obj;
-        if (a->count != return_type->as.return_type_list.count) return false;
+        if (a->count != return_type->count) return false;
         for (int i = 0; i < a->count; i++) {
-            if (!return_type_matches(return_type->as.return_type_list.types[i], a->items[i])) return false;
+            if (!return_type_matches(return_type->types[i], a->items[i])) return false;
         }
         return true;
     }
 
-    if (return_type->type == UNARY && return_type->as.unary.op == TOK_STAR) {
+    if (return_type->type == UNARY && return_type->op == TOK_STAR) {
         return result.type == ValueType::Int;
     }
 
     ValueType expected_vt;
-    if (ident_is_type_name(return_type->as.ident.name, return_type->as.ident.len, &expected_vt)) {
+    if (ident_is_type_name(return_type->name, return_type->len, &expected_vt)) {
         return result.type == expected_vt;
     }
-    AstNode *struct_decl = find_struct_decl(return_type->as.ident.name, return_type->as.ident.len);
+    AstNode *struct_decl = find_struct_decl(return_type->name, return_type->len);
     if (struct_decl) {
         if (result.type != ValueType::Struct) return false;
         ObjStruct *s = (ObjStruct*)result.as.obj;
-        return s->type_name && s->type_name_len == return_type->as.ident.len &&
-            strncmp(s->type_name, return_type->as.ident.name, return_type->as.ident.len) == 0;
+        return s->type_name && s->type_name_len == return_type->len &&
+            strncmp(s->type_name, return_type->name, return_type->len) == 0;
     }
     return true;
 }

@@ -46,234 +46,96 @@ struct AstNode {
     bool is_static;
     void *static_slot;      // lazy alloc for statics in ObjVar
 
-    union {
+    // Literals
+    long int_val;
+    double float_val;
+    bool bool_val;
+    const char *text;
 
-        // Literals
-        struct {
-            long value;
-        } int_lit;
-        struct {
-            double value;
-        } float_lit;
-        struct {
-            const char *start;
-            int len;
-        } str_lit;
-        struct {
-            const char *start;
-            int len;
-        } rune_lit;
-        struct {
-            bool value;
-        } bool_lit;
-        struct {
-            struct AstNode **items;
-            int count;
-        } array_lit;
-        struct {
-            struct AstNode **fields;
-            int count;
-        } struct_lit;
-        struct {
-            const char *name;
-            int len;
-            struct AstNode *type_expr;
-            struct AstNode *value;
-            bool is_variadic;
-        } field;
-        struct {
-            struct AstNode *key;
-            struct AstNode *value;
-        } array_entry;
-        struct {
-            const char *name;
-            int len;
-        } ident;
+    const char *name;
+    int len;
 
-        // Decl
-        struct {
-            TokenType type_annotation;
-            AstNode **decls;
-            int decl_count;
-        } type_block;
-        struct {
-            struct AstNode *element_type;
-        } array_type;
-        struct {
-            const char *name;
-            int len;
-            bool has_type_annotation;
-            struct AstNode *type_annotation;
-            struct AstNode *type_size;
-            bool is_unsized_array;
-            struct AstNode *value;
-        } decl;
-        struct {
-            struct AstNode **targets;
-            int target_count;
-            bool is_immutable;
-            struct AstNode *value;
-        } destructure_decl;
-        struct {
-            struct AstNode **types;
-            int count;
-        } return_type_list;
+    // Collection lits
+    AstNode **items;
+    int count;
+    AstNode **fields;
+    int field_count;
+    AstNode *key;
 
-        // Expr
-        struct { // left/right for comparison ops, arithmetic & string concat
-            TokenType op;
-            struct AstNode *left, *right;
-        } binary;
-        struct { // !/-
-            TokenType op;
-            struct AstNode *operand;
-        } unary;
-        struct { // cond ? then : else + if as expr
-            struct AstNode *cond, *then_expr, *else_expr;
-        } ternary;
-        struct { // call ident
-            struct AstNode *callee;
-            struct AstNode **args;
-            int arg_count;
-        } call;
-        struct { // array indices [x]
-            struct AstNode *object;
-            struct AstNode **indices;
-            int index_count;
-        } index;
-        struct { // .accessor chain
-            struct AstNode *object;
-            const char *field;
-            int len;
-        } field_access;
-        struct { // fn name :: {...} & name := fn {...}
-            const char *name;
-            int len;
-            struct AstNode **params;
-            int param_count;
-            AstNode *return_type;
-            struct AstNode *body;
-        } fn_decl;
-        struct { // struct name {...}
-            const char *name;
-            int len;
-            struct AstNode **fields;
-            int field_count;
-        } struct_decl;
-        struct { // enum name { a, b, c }
-            const char *name;
-            int len;
-            struct AstNode **variants;
-            int variant_count;
-        } enum_decl;
+    AstNode *type_expr;
+    AstNode *value;
+    bool is_variadic;
 
-        // Stmt
-        struct { // =
-            struct AstNode *target;
-            TokenType op;
-            struct AstNode *value;
-            bool is_method;
-        } assign;
-        struct { // { ... }
-            struct AstNode **stmts;
-            int stmt_count;
-        } block;
-        struct {
-            struct AstNode *cond;
-            struct AstNode *then_branch;
-            struct AstNode *else_branch;
-        } if_stmt;
-        struct {
-            struct AstNode *cond;
-            struct AstNode *body;
-        } while_stmt;
-        struct {
-            struct AstNode *start, *end;
-            struct AstNode *body;
-        } for_range;
-        struct {
-            struct AstNode *init, *cond, *incr;
-            struct AstNode *body;
-        } for_cstyle;
-        struct {
-            const char *key_name;
-            int key_len;
-            const char *val_name;
-            int val_len;
-            struct AstNode *iterable;
-            struct AstNode *body;
-        } for_in;
-        struct {
-            AstNode *try_block;
-            const char *catch_name;
-            int catch_len;
-            AstNode *catch_block;
-        } try_stmt;
-        struct {
-            struct AstNode *scrutinee;
-            struct AstNode *guard;
-            struct AstNode **cases;
-            int case_count;
-        } switch_stmt;
-        struct {
-            struct AstNode *label;
-            struct AstNode *body;
-        } switch_case;
-        struct {
-            struct AstNode *value;
-        } return_stmt;
-        struct { // bare call ie print()
-            struct AstNode *expr;
-        } expr_stmt;
-        struct {
-            struct AstNode *value;
-        } defer_stmt;
+    // Decl
+    TokenType type_tok;
+    AstNode **decls;
+    int decl_count;
+    AstNode *element_type;
+    bool has_type_annotation;
+    AstNode *type_annotation;
+    AstNode *type_size;
+    bool is_unsized_array;
+    AstNode **targets;
+    int target_count;
+    bool is_immutable;
+    AstNode **types;
 
-        // Meta
-        struct { // #import
-            const char *path;
-            int path_len;
-            const char *alias;
-            int alias_len;
-        } import;
-        struct { // #primitive
-            const char *name;
-            int len;
-            struct AstNode **params;
-            int param_count;
-            AstNode *return_type;
-            AstNode *body;
-            void *fn_obj;
-            void *resolved;
-            const char *file;
-        } primitive;
-        struct { // Words are nre grammar introduced in vivi source
-            const char *name;
-            int len;
-            struct AstNode **args;
-            int arg_count;
-            struct AstNode *block;
-        } word;
-        struct { // #proctime
-            struct AstNode **stmts;
-            int stmt_count;
-        } proctime_block;
-        struct { // #method fn name :: () {...}, #method name := fn () {}
-            const char *name;
-            int len;
-            struct AstNode **params;
-            int param_count;
-            AstNode *return_type;
-            struct AstNode *body;
-            bool is_mut;
-        } method;
+    // Expr
+    TokenType op;
+    AstNode *left, *right;
+    AstNode *operand;
+    AstNode *cond;
+    AstNode *then_expr, *else_expr;
+    AstNode *callee;
+    AstNode **args;
+    int arg_count;
+    AstNode *object;
+    AstNode **indices;
+    int index_count;
+    const char *field;
 
+    AstNode **params;
+    int param_count;
+    AstNode *return_type;
+    AstNode *body;
+    bool is_mut;
 
-        struct { // interpreter meta
-            struct AstNode **stmts;
-            int stmt_count;
-        } program;
-    } as;
+    AstNode **variants;
+    int variant_count;
+
+    // Stmt
+    AstNode *target;
+    bool is_method;
+    AstNode **stmts;
+    int stmt_count;
+    AstNode *then_branch, *else_branch;
+    AstNode *start, *end;
+    AstNode *init, *incr;
+    const char *key_name;
+    int key_len;
+    const char *val_name;
+    int val_len;
+    AstNode *iterable;
+    AstNode *try_block;
+    const char *catch_name;
+    int catch_len;
+    AstNode *catch_block;
+    AstNode *scrutinee;
+    AstNode *guard;
+    AstNode **cases;
+    int case_count;
+    AstNode *label;
+    AstNode *expr;
+
+    // Meta
+    const char *path;
+    int path_len;
+    const char *alias;
+    int alias_len;
+    void *fn_obj;
+    void *resolved;
+    const char *file;
+    AstNode *block;
 };
 
 struct Obj {

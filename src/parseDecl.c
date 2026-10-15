@@ -43,8 +43,8 @@ static AstNode* parse_decl(Parser *p) {
     AstNode *n = is_immutable
         ? make_immut_decl(name, name_len, has_type_annotation, type_annotation, value, line, col)
         : make_mut_decl(name, name_len, has_type_annotation, type_annotation, value, line, col);
-    n->as.decl.type_size = type_size;
-    n->as.decl.is_unsized_array = is_unsized_array;
+    n->type_size = type_size;
+    n->is_unsized_array = is_unsized_array;
     return n;
 }
 
@@ -113,7 +113,7 @@ static AstNode** parse_param_list(Parser *p, int *out_count) {
 
             if (match(p, TOK_ELLIPSES)) {
                 AstNode *variadic = make_param(nullptr, 0, type_expr, nullptr, line, col);
-                variadic->as.field.is_variadic = true;
+                variadic->is_variadic = true;
                 ast_list_push(&params, variadic);
                 break;
             }
@@ -413,7 +413,7 @@ static AstNode* parse_method(Parser *p) {
             parser_error(p, "expected newline or ';' after method reassignment");
         }
         AstNode *n = make_assign(make_ident(name, name_len, line, col), TOK_ASSIGN, value, line, col);
-        n->as.assign.is_method = true;
+        n->is_method = true;
         return n;
     } else {
         expect(p, TOK_MUT, "expected '::' or ':=' after method name");
@@ -425,6 +425,6 @@ static AstNode* parse_method(Parser *p) {
     AstNode *body = parse_block(p);
 
     AstNode *n = make_method(name, name_len, params, param_count, return_type, body, line, col);
-    n->as.method.is_mut = is_mut;
+    n->is_mut = is_mut;
     return n;
 }
