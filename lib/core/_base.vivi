@@ -1,18 +1,3 @@
-#primitive i32 _write :: (i32 fd, string data)
-#primitive _exit :: (i32 code)
-#primitive string _traceback :: ()
-#primitive f64 _clock :: ()
-#primitive i32 _rand :: ()
-#primitive u32 _len :: (a)
-#primitive value _cast :: (a, string t)
-#primitive _set :: (a, u32 i, item v)
-#primitive item _get :: (a, u32 i)
-#primitive _trunc :: (a, u32 n)
-
-
-
-// Builtins
-
 print := (...) {
     _write(1, string(argv[0]))
     for i := 1; i < argc; i++ {
@@ -111,7 +96,7 @@ i32 hash := (string v) {
 
 #method take :: (i) {
     n := _len(self)
-    if i < 0 or i >= n { _panic("take() index out of range") }
+    if i < 0 or i >= n { panic("take() index out of range") }
     v := _get(self, i)
     j := i
     while j < n - 1 {
@@ -232,3 +217,23 @@ cast := (*v, type) {
 
 int := i32
 float := f32
+
+
+// Phrase example
+#phrase unless :: (cond, block body) {
+    if !cond {
+        return body
+    }
+}
+
+/*
+
+    unless false {
+        print("this runs")
+    }
+
+    unless true {
+        print("this is skipped")
+    }
+
+*/

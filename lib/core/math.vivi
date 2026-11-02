@@ -326,7 +326,7 @@ gcd := (a, b) {
     return a
 }
 
-lcm := fn (a, b) {
+lcm := (a, b) {
     if (a == 0 && b == 0) { return 0 }
     return abs(a) / gcd(a, b) * abs(b)
 }

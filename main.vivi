@@ -1,4 +1,5 @@
-#import "core:strings" as _ 
+#import "Core"
+#import "Math"
 
 void run :: () {
 
@@ -7,6 +8,8 @@ void run :: () {
     println("This is a rough test to show some very basic syntax. Use './build/vivi .' to run.")
     println("Expect a lot of broken stuff right now.\n")
     println("Not a complete example, see libraries for more.\n")
+
+    // Todo: add printf()
 
     hello := "Hello, Black Mage!"
     println(hello)
@@ -17,6 +20,7 @@ void run :: () {
     // Defer
     cleanup :: () { println("This was deferred \n") }
     defer cleanup()
+    // Might want defer {} scopes for deferred blocks, qol thing
 
     /****************************/
     // Declarations
@@ -141,6 +145,7 @@ void run :: () {
     println("Mult:", mult(1, 2))
     pub()
     // pub().priv() Should be able to do this, broken right now
+    // might not even want pub().priv(), may deprecate that at some point
 
     print("\n")
 
