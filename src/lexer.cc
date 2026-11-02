@@ -13,8 +13,8 @@ static Token make_token(Lexer *lx, TokenType type, const char *start, int len, b
     t.type = type;
     t.start = start;
     t.len = len;
-    t.line = lx->line;
-    t.col = lx->col;
+    t.line = lx->tok_line;
+    t.col = lx->tok_col;
     t.preceded_nl = preceded_nl;
     return t;
 }
@@ -78,7 +78,8 @@ static Token lex_quoted_literal(Lexer *lx, const char *start, char quote, TokenT
         advance(lx);
     }
     if (is_at_end(lx) || peek(lx) != quote) {
-        print_source_line(stdout, lx->src, start_line);
+        current_line = start_line;
+        current_col = lx->tok_col;
         print_err("unterminated", start_line);
         return make_token(lx, tok_type, start + 1, 0, preceded_nl);
     }
@@ -115,6 +116,8 @@ Token next_token(Lexer *lx) {
     skip_whitespace_and_comments(lx, &preceded_nl);
 
     const char *start = lx->cur;
+    lx->tok_line = lx->line;
+    lx->tok_col = lx->col;
     if (is_at_end(lx)) return make_token(lx, TOK_EOF, start, 0, preceded_nl);
 
     char c = advance(lx);
@@ -157,7 +160,7 @@ Token next_token(Lexer *lx) {
         if (match_word(lx, "import"))       return make_token(lx, TOK_IMPORT, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "proctime"))     return make_token(lx, TOK_PROCTIME, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "interop"))      return make_token(lx, TOK_INTEROP, start, (int)(lx->cur - start), preceded_nl);
-        if (match_word(lx, "primitive"))    return make_token(lx, TOK_PRIMITIVE, start, (int)(lx->cur - start), preceded_nl);
+        if (match_word(lx, "phrase"))       return make_token(lx, TOK_PHRASE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "inline"))       return make_token(lx, TOK_INLINE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "method"))       return make_token(lx, TOK_METHOD, start, (int)(lx->cur - start), preceded_nl);
 
@@ -280,7 +283,6 @@ const char *token_name(TokenType t) {
         case TOK_FALLTHROUGH:   return "FALLTHROUGH";
 
         // Functions & program flow
-        case TOK_FN:            return "FN";
         case TOK_RETURN:        return "RETURN";
         case TOK_DEFER:         return "DEFER";
 
@@ -298,7 +300,7 @@ const char *token_name(TokenType t) {
         case TOK_PROCTIME:      return "PROCTIME";
         case TOK_IMPORT:        return "IMPORT";
         case TOK_INTEROP:       return "INTEROP";
-        case TOK_PRIMITIVE:     return "PRIMTIVE";
+        case TOK_PHRASE:        return "PHRASE";
         case TOK_INLINE:        return "INLINE";
         case TOK_METHOD:        return "METHOD";
 

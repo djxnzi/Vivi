@@ -97,6 +97,7 @@ void Vivi::processFlags(int argc, char* argv[], std::string& outScriptPath, cons
                     p.lookahead_count = 0;
                     parser_advance(&p);
 
+                    find_keywords(source.c_str());
                     AstNode *program = parse_program(&p);
                     if (p.had_error) {
                         printf("\nParsing finished with errors.\n\n");
@@ -129,12 +130,16 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
     p.had_error = false;
     p.lookahead_count = 0;
     parser_advance(&p);
+    find_keywords(source.c_str());
     AstNode *program = parse_program(&p);
 
-    global_env = env_new(nullptr);
+    builtin_env = env_new(nullptr);
+    register_builtins(builtin_env);
+    global_env = env_new(builtin_env);
+    root_env = global_env;
 
     // autoload _base.vivi
-    std::string base_path = "./lib/core/_base.vivi";
+    std::string base_path = lib_dir + "/core/_base.vivi";
     std::string base_source;
     if (read_file(base_path.c_str(), base_source)) {
         char *heap_src = (char*)arena_alloc((int)base_source.length() + 1);
@@ -156,9 +161,8 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
         AstNode *base_program = parse_program(&base_p);
 
         if (!base_p.had_error) {
-            resolve_primitives(base_program);
-            for (int i = 0; i < base_program->as.program.stmt_count; i++)
-                exec_stmt(base_program->as.program.stmts[i]);
+            for (int i = 0; i < base_program->stmt_count; i++)
+                exec_stmt(base_program->stmts[i]);
         }
 
         current_file = saved_file;
@@ -169,8 +173,8 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
     argv[0] = scriptPath.c_str();
     for (int i = 0; i < scriptArgCount; i++) argv[i + 1] = scriptArgs[i];
 
-    resolve_primitives(program);
     run_proctime(program);
+    expand_words(program);
     pt_check_structure(program);
 
     fwrite(proctime_kept_buf, 1, proctime_kept_size, stdout);
@@ -185,14 +189,17 @@ void Vivi::sourceExec(const std::string& source, const std::string& scriptPath, 
     if (error_count == 0) {
         run_program(program, scriptArgCount + 1, argv, source.c_str());
     } else {
-        printf("\n\%d error(s) found; not running.\n", error_count);
+        printf("\n\%d error(s) found; not running.\n\n", error_count);
         exit(CODE_USAGE);
     }
 }
+void Vivi::seed(unsigned int s) {
+    srand(s);
+}
 
 void Vivi::run(int argc, char* argv[]) {
+    seed((unsigned int)time(0));
     root_dir = fs::canonical("/proc/self/exe").parent_path().string();
-
     std::string scriptPath;
     const char **scriptArgs = (const char**)arena_alloc(argc * sizeof(const char*));
     int scriptArgCount = 0;

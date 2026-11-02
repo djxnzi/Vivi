@@ -9,6 +9,7 @@ static bool values_equal(Value a, Value b);
 static bool coerce(Value v, Value *out);
 static long truncate_int(long v, const char *tname, int tlen);
 static bool value_matches_type(AstNode *type_annotation, Value v, Value *out);
+static bool type_is_void(AstNode *rt);
 static bool return_type_matches(AstNode *return_type, Value result);
 static Value eval_math(TokenType op, Value l, Value r);
 static void array_needs_capacity(ObjArray *a, int needed);

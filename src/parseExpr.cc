@@ -38,17 +38,17 @@ static AstNode* parse_primary(Parser *p) {
     if (match(p, TOK_IDENT)) {
         return make_ident(p->previous.start, p->previous.len, line, col);
     }
-    if (check(p, TOK_FN)) {
-        int line2 = p->current.line, col2 = p->current.col;
-        parser_advance(p);
-        return parse_fn_lit(p, line2, col2);
+    if (!p->no_fn_lit && check_fn(p)) {
+        return parse_fn_lit(p, line, col);
     }
     if (is_type_keyword(p->current.type)) {
         parser_advance(p);
         return make_ident(p->previous.start, p->previous.len, line, col);
     }
     if (match(p, TOK_LPAREN)) {
+        bool saved = p->no_fn_lit; p->no_fn_lit = false;
         AstNode *expr = parse_expression(p);
+        p->no_fn_lit = saved;
         expect(p, TOK_RPAREN, "expected ')' after expression");
         return expr;
     }
@@ -84,7 +84,7 @@ static AstNode* parse_postfix(Parser *p) {
     for (;;) {
         int line = p->current.line, col = p->current.col;
 
-        if (match(p, TOK_LPAREN)) {
+        if (!p->current.preceded_nl && match(p, TOK_LPAREN)) {
             AstList args;
             ast_list_init(&args);
             if (!check(p, TOK_RPAREN)) {
@@ -95,7 +95,7 @@ static AstNode* parse_postfix(Parser *p) {
             expect(p, TOK_RPAREN, "expected ')' after arguments");
 
             expr = make_call(expr, &args, line, col);
-        } else if (match(p, TOK_LBRACKET)) {
+        } else if (!p->current.preceded_nl && match(p, TOK_LBRACKET)) {
             AstList indices;
             ast_list_init(&indices);
             do {
@@ -264,7 +264,7 @@ static AstNode* parse_interpolated_string(const char *text, int len, int line, i
             memcpy(expr_buf, text + expr_start, expr_len);
             expr_buf[expr_len] = '\0';
 
-            Lexer sub_lx = { expr_buf, expr_buf, line, col };
+            Lexer sub_lx = { expr_buf, expr_buf, line, col + 1 + expr_start };
             Parser sub_p = {};
             sub_p.lx = &sub_lx;
             sub_p.had_error = false;
@@ -272,6 +272,7 @@ static AstNode* parse_interpolated_string(const char *text, int len, int line, i
             parser_advance(&sub_p);
             AstNode *expr = parse_expression(&sub_p);
             if (sub_p.had_error) {
+                current_line = line; current_col = col;
                 print_err("interpolation");
             }
 

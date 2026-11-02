@@ -1,16 +1,22 @@
 static const char* exit_code(int code);
 static const char* op_symbol(TokenType op);
 void print_err(const char* code, ...);
-static const char* format_op_error(const char *fmt, va_list *args);;
-static void print_frame_chain(Env *env);
-static void print_source_line(FILE *out, const char *src, int target_line);
+static const char* format_op_error(const char *fmt, va_list *args);
+static const char* error_category(const char *code);
+static const char* suggestion_for(const char *code);
+static bool is_internal_error(const char *code);
+static void print_source_line(FILE *out, const char *src, int target_line, int col, const char *label = nullptr, int label_len = 0);
+static void print_breadcrumb(FILE *dest, Env *env);
+static void write_error(FILE *dest, const char *msg, int n, const char *code, const char *hint);
+static void err_type_mismatch(AstNode *annotation, Value v);
+static void build_caught_string(const char *heap, int n);
 static void print_traceback(int err_line, int err_col, FILE *dest = stderr);
 static int error_count = 0;
 static int try_depth = 0;
+static jmp_buf *error_handler = nullptr;
 static bool in_exec = false;
 static FILE *program_output = nullptr;
-static char *program_output_buf = nullptr;
-static size_t program_output_size = 0;
+static bool stdout_open_line = false;
 static char *proctime_kept_buf = nullptr;
 static size_t proctime_kept_size = 0;
 static FILE *pending_errors = nullptr;
@@ -28,3 +34,6 @@ enum ExitCode {
     CODE_NOTFOUND = 127,   // 404 thing not found
     CODE_PANIC    = 134,   // panic() sigabort
 };
+
+static jmp_buf top_handler;
+static int top_exit_code = CODE_ERROR;

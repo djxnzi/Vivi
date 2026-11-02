@@ -1,4 +1,5 @@
 static Env *global_env = nullptr;
+static Env *root_env = nullptr;
 static Env* env_new(Env *parent);
 static EnvEntry* env_find_local(Env *env, const char *name, int len);
 static EnvEntry* env_find(Env *env, const char *name, int len);
@@ -8,7 +9,6 @@ static void env_set_type_annotation(Env *env, const char *name, int len, AstNode
 static bool env_get(Env *env, const char *name, int len, Value *out);
 static bool env_assign(Env *env, const char *name, int len, Value value);
 static Env* build_closure_env();
-static void print_frame_chain(Env *env);
 static void print_traceback(int err_line, int err_col, FILE *dest);
 
 struct LoopVar { const char *name; int len; };

@@ -24,6 +24,8 @@ static void* arena_alloc(size_t size) {
 
     if (size > ARENA_BLOCK_SIZE) {
         try_depth = 0;
+        top_exit_code = CODE_PANIC;
+        error_handler = &top_handler;
         print_err("alloc_guard", size, (size_t)ARENA_BLOCK_SIZE);
         exit(CODE_PANIC);
     }

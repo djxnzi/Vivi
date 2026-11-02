@@ -7,9 +7,13 @@
 #include <cstdarg>
 #include <cmath>
 #include <ctime>
+#include <csetjmp>
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 namespace fs = std::filesystem;
-int random_seed = (srand(time(0)), 0);
 
 inline bool read_file(const char *path, std::string &out) {
     FILE *f = fopen(path, "rb");
@@ -25,12 +29,14 @@ inline bool read_file(const char *path, std::string &out) {
 
 // Vivi forward decl
 struct Vivi {
-    const char* version = "0.1";
+    const char* version = "0.03a";
     std::string root_dir;
+    std::string lib_dir = "./lib";
     const bool exit_code_debug = false;
     void processFlags(int argc, char* argv[], std::string& outScriptPath, const char **outScriptArgs, int *outScriptArgCount);
     void sourceExec(const std::string& source, const std::string& scriptPath, const char * const *scriptArgs, int scriptArgCount);
     void run(int argc, char* argv[]);
+    void seed(unsigned int s);
 };
 inline Vivi vivi;
 
@@ -45,7 +51,7 @@ inline Vivi vivi;
 #include <registry.h>
 #include <eval.h>
 #include <exec.h>
-#include <primitive.h>
+#include <builtin.h>
 #include <proctime.h>
 
 #include <arena.c>
@@ -61,7 +67,7 @@ inline Vivi vivi;
 #include <eval.c>
 #include <exec.c>
 #include <error.c>
-#include <primitive.c>
+#include <builtin.c>
 #include <proctimeGraph.c>
 #include <proctime.c>
 
