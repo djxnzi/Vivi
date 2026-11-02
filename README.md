@@ -10,6 +10,8 @@ Vivi is interpreted, can interpret itself, and runs linearly.
 
 Its #proctime phase works like #comptime, giving you full reflective access to the program before execution
 
+It also has grammar extension through a #phrase system
+
 Vivi is NOT
 - A language that has macros. Generate it with #proctime.
 - An object oriented language. No objects, no this.
