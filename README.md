@@ -1,5 +1,7 @@
 # Vivi (.vivi)
 
+> Vivi is still a WIP and in alpha, so a lot of this isn't true right now and will be eventually
+
 Vivi is a hackable modern metaprogramming language with reflective preprocessing.
 
 It is a gradually typed, embeddable scripting lang with optional type annotation and a lightweight core.
