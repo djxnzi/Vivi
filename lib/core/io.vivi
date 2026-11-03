@@ -1,75 +1,91 @@
-// File handling
+// print functions
 
-file_read := (path) {
-    fd := _open(path, "r")
-    text := ""
-    chunk := _read(fd, 4096)
-    while chunk != null {
-        text ~= chunk
-        chunk = _read(fd, 4096)
+print := (...) {
+    _write(1, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(1, " " ~ string(argv[i]))
     }
-    _close(fd)
-    return text
 }
 
-file_write := (path, text) {
-    fd := _open(path, "w")
-    _write(fd, text)
-    _close(fd)
-}
-
-file_append := (path, text) {
-    fd := _open(path, "a")
-    _write(fd, text)
-    _close(fd)
-}
-
-file_exists := (path) {
-    found := true
-    try {
-        _close(_open(path, "r"))
-    } catch (err) {
-        found = false
+println := (...) {
+    _write(1, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(1, " " ~ string(argv[i]))
     }
-    return found
+
+    _write(1, "\n")
 }
 
-file_lines := (path) {
-    text := file_read(path)
-    out := []
-    line := ""
-    for i := 0; i < _len(text); i++ {
-        c := text.char_at(i)
-        if c == "\n" {
-            out.push(line)
-            line = ""
+printf := (string fmt, ...) {
+    a := 0
+    for i := 0; i < fmt.len; i++ {
+        if fmt.char_at(i) == "%" {
+            i++
+            if i >= fmt.len {
+                print("%")
+                break
+            }
+            spec := fmt.char_at(i)
+            base := 10
+            switch spec {
+                "x":
+                    base = 16
+                    fallthrough
+                "d":
+                    n := i32(argv[a])
+                    a++
+                    if n == 0 {
+                        print("0")
+                    }
+                    is_negative := false
+                    if n < 0 {
+                        if base == 10 {
+                            is_negative = true
+                            n = -n
+                        } else {
+                            n += 4294967296
+                        }
+                    }
+                    buf := []
+                    while n > 0 {
+                        rem := n % base
+                        if rem < 10 {
+                            buf.push(rune(rem + 48))
+                        } else {
+                            buf.push(rune(rem - 10 + 97))
+                        }
+                        n = n / base
+                    }
+                    if is_negative {
+                        print("-")
+                    }
+                    j := buf.len - 1
+                    while j >= 0 {
+                        print(string(buf[j]))
+                        j -= 1
+                    }
+                "s":
+                    s := argv[a]
+                    a++
+                    if s == null {
+                        s = "(null)"
+                    }
+                    print(string(s))
+                "c":
+                    print(string(rune(argv[a])))
+                    a++
+                "%":
+                    print("%")
+                default:
+                    print("%" ~ spec)
+            }
         } else {
-            line ~= c
+            print(string(fmt.char_at(i)))
         }
     }
-    if line != null out.push(line)
-    return out
 }
 
-// stdin
-
-read_line := () {
-    line := ""
-    c := _read(0, 1)
-    while c != null {
-        line ~= c
-        if c == "\n" break
-        c = _read(0, 1)
-    }
-    return line
-}
-
-input := (prompt) {
-    print(prompt)
-    return read_line()
-}
-
-// stderr
+// stderr prints
 
 eprint := (...) {
     _write(2, string(argv[0]))
@@ -153,4 +169,75 @@ eprintf := (string fmt, ...) {
             eprint(string(fmt.char_at(i)))
         }
     }
+}
+
+// File handling
+
+file_read := (path) {
+    fd := _open(path, "r")
+    text := ""
+    chunk := _read(fd, 4096)
+    while chunk != null {
+        text ~= chunk
+        chunk = _read(fd, 4096)
+    }
+    _close(fd)
+    return text
+}
+
+file_write := (path, text) {
+    fd := _open(path, "w")
+    _write(fd, text)
+    _close(fd)
+}
+
+file_append := (path, text) {
+    fd := _open(path, "a")
+    _write(fd, text)
+    _close(fd)
+}
+
+file_exists := (path) {
+    found := true
+    try {
+        _close(_open(path, "r"))
+    } catch (err) {
+        found = false
+    }
+    return found
+}
+
+file_lines := (path) {
+    text := file_read(path)
+    out := []
+    line := ""
+    for i := 0; i < _len(text); i++ {
+        c := text.char_at(i)
+        if c == "\n" {
+            out.push(line)
+            line = ""
+        } else {
+            line ~= c
+        }
+    }
+    if line != null out.push(line)
+    return out
+}
+
+// stdin
+
+read_line := () {
+    line := ""
+    c := _read(0, 1)
+    while c != null {
+        line ~= c
+        if c == "\n" break
+        c = _read(0, 1)
+    }
+    return line
+}
+
+input := (prompt) {
+    print(prompt)
+    return read_line()
 }
