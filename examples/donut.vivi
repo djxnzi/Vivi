@@ -1,0 +1,121 @@
+// Donut by Xansidev - github.com/XansiOnGit
+
+#import "Math"
+#import "Sys"
+#import "Io"
+
+// ---- knobs ----
+ISTEP := 0.05     // sweep around the ring: smaller = fewer holes, slower
+JSTEP := 0.12     // around the tube: 0.07 was oversampled
+ASTEP := 0.0704   // rotation per frame
+BSTEP := 0.0352
+SECONDS := 10
+// ---------------
+
+ESC := "" ~ rune(27)
+W := 80
+H := 22
+SIZE := W * H
+
+RAMP := ".,-~:;=!*#$@"
+ramp := []
+for k := 0; k < RAMP.len(); k++ {
+    ramp.push(RAMP.char_at(k))
+}
+
+si := []
+ci := []
+i := 0.0
+while i < 6.28 {
+    si.push(sin(i))
+    ci.push(cos(i))
+    i += ISTEP
+}
+NI := si.len()
+
+sj := []
+cj := []
+j := 0.0
+while j < 6.28 {
+    sj.push(sin(j))
+    cj.push(cos(j))
+    j += JSTEP
+}
+NJ := sj.len()
+
+z := []
+b := []
+for k := 0; k < SIZE; k++ {
+    z.push(0.0)
+    b.push(" ")
+}
+
+A := 0.0
+B := 0.0
+start := timestamp()
+frames := 0
+
+print(ESC ~ "[2J" ~ ESC ~ "[?25l")
+
+while timestamp() - start < SECONDS and frames < 1000 {
+    sinA := sin(A)
+    cosA := cos(A)
+    sinB := sin(B)
+    cosB := cos(B)
+    k1 := cosA * cosB + sinA
+
+    for jj := 0; jj < NJ; jj++ {
+        f := sj[jj]
+        d := cj[jj]
+        h := d + 2
+        fcA := f * cosA
+        fsA := f * sinA
+        hsA := h * sinA
+        hcA := h * cosA
+        hsB := h * sinB
+        hcB := h * cosB
+        n0 := 8 * (fsA * cosB - fcA)
+        n1 := 8 * d * k1
+        n2 := 8 * d * sinB
+
+        for ii := 0; ii < NI; ii++ {
+            c := si[ii]
+            l := ci[ii]
+            D := 1 / (c * hsA + fcA + 5)
+            t := c * hcA - fsA
+            x := i32(40 + 30 * D * (l * hcB - t * sinB))
+            y := i32(12 + 15 * D * (l * hsB + t * cosB))
+            o := x + 80 * y
+            if y > 0 and y < 22 and x > 0 and x < 80 and D > z[o] {
+                N := i32(n0 - c * n1 - l * n2)
+                if N < 0 { N = 0 }
+                if N > 11 { N = 11 }
+                z[o] = D
+                b[o] = ramp[N]
+            }
+        }
+    }
+
+    // build the frame row by row, clearing the buffers in the same pass
+    frame := ESC ~ "[H"
+    for row := 0; row < H; row++ {
+        line := ""
+        base := row * W
+        for col := 0; col < W; col++ {
+            k := base + col
+            line ~= b[k]
+            b[k] = " "
+            z[k] = 0.0
+        }
+        frame ~= line ~ "\n"
+    }
+    print(frame)
+
+    A += ASTEP
+    B += BSTEP
+    frames += 1
+}
+
+elapsed := timestamp() - start
+print(ESC ~ "[?25h")
+println("done, {frames} frames in {elapsed}s")

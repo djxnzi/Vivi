@@ -1,0 +1,24 @@
+// Mandlebrot by Xansidev - github.com/XansiOnGit
+
+#import "Io"
+
+shades := " .:-=+*#%@"
+
+for row := 0; row < 24; row++ {
+    line := ""
+    for col := 0; col < 78; col++ {
+        cr := (col - 52) / 25.0
+        ci := (row - 12) / 10.0
+        zr := 0.0
+        zi := 0.0
+        n := 0
+        while n < 9 and zr * zr + zi * zi < 4 {
+            t := zr * zr - zi * zi + cr
+            zi = 2 * zr * zi + ci
+            zr = t
+            n += 1
+        }
+        line ~= _cast(_get(shades, n), "rune")
+    }
+    print(line ~ "\n")
+}
