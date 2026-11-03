@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <cstring>
+#include <string>
 #include <cstdarg>
 #include <cmath>
 #include <ctime>
@@ -27,11 +28,24 @@ inline bool read_file(const char *path, std::string &out) {
     return true;
 }
 
+// VIVI_HOME wins if set (the Nix wrapper sets it) :3
+// Otherwise use <dir of the binary>/../lib, which works in the repo
+// (build/vivi -> ./lib) and for a plain install (bin/vivi -> ../lib)
+// Teehee :3
+inline std::string default_lib_dir() {
+    if (const char *env = std::getenv("VIVI_HOME"))
+        return std::string(env) + "/lib";
+    std::error_code ec;
+    auto exe = std::filesystem::canonical("/proc/self/exe", ec);
+    if (ec) return "./lib";   // old behavior as a last resort
+    return (exe.parent_path().parent_path() / "lib").string();
+}
+
 // Vivi forward decl
 struct Vivi {
     const char* version = "0.03a";
     std::string root_dir;
-    std::string lib_dir = "./lib";
+    std::string lib_dir = default_lib_dir();
     const bool exit_code_debug = false;
     void processFlags(int argc, char* argv[], std::string& outScriptPath, const char **outScriptArgs, int *outScriptArgCount);
     void sourceExec(const std::string& source, const std::string& scriptPath, const char * const *scriptArgs, int scriptArgCount);
