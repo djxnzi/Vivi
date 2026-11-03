@@ -5,7 +5,7 @@
 > 
 > We'll open up restrictions on this as time goes on and we exit alpha.
 
-Please always remember that Vivi is inteaded to be a hackable, modern metaprogramming language. The developer experience overwrites maintainer/creator experience, and anything that can be modified by users should always be permissable. Our job is to just make sure the language works as intended, not dictate best practices.
+Please always remember that Vivi is intended to be a hackable, modern metaprogramming language. The developer experience overwrites maintainer/creator experience, and anything that can be modified by users should always be permissible. Our job is to just make sure the language works as intended, not dictate best practices.
 
 Everything about Vivi is a work in progress and you're encouraged to experiment. This file, as well as all policies, rules, and licenses are subject to change as time goes on.
 
