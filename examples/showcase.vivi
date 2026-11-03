@@ -2,7 +2,7 @@
 
 // This is a work in progress showcase of Vivi, language is still in alpha
 // Run this from the project root
-// build/vivi .
+// build/vivi examples/showcase.vivi
 
 // Imports, imported flat but use "as" to give imports a namespace
 #import "Strings"
