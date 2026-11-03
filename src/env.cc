@@ -13,6 +13,8 @@ static Env* env_new(Env *parent) {
     env->call_name_len = 0;
     env->call_line = 0;
     env->call_col = 0;
+    env->call_file = nullptr;
+    env->call_source = nullptr;
     env->loop_floor = 0;
     return env;
 }

@@ -4,6 +4,7 @@ static Value* resolve_place(AstNode *node, bool create = false, bool *fresh = nu
 static Value* struct_field_slot(Value obj, const char *name, int len);
 static bool array_locate(ObjArray *a, Value idx, int *pos);
 static void assign_apply(Value *slot, TokenType op, Value rhs, bool fresh);
+static Value assign_op_eval(TokenType op, Value old, Value rhs);
 static Value auto_deref(AstNode *obj_node, Value obj);
 static Value eval_expr(AstNode *node);
 static Value eval_block_as_expr(AstNode *block);

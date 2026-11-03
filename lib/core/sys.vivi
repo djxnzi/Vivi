@@ -1,0 +1,48 @@
+// Run cmd with the script's own stdin/stdout/stderr; returns the exit code
+run := (cmd) {
+    return _run(cmd)
+}
+
+// Run cmd and return [exit code, stdout as a string]
+capture := (cmd) {
+    p := _pipe()
+    pid := _spawn(cmd, 0, p[1], 2)
+    _close(p[1])
+    out := ""
+    chunk := _read(p[0], 4096)
+    while chunk != null {
+        out ~= chunk
+        chunk = _read(p[0], 4096)
+    }
+    _close(p[0])
+    return [_wait(pid), out]
+}
+
+// Run cmd with text as its stdin; returns the exit code
+feed := (cmd, text) {
+    p := _pipe()
+    pid := _spawn(cmd, p[0], 1, 2)
+    _close(p[0])
+    _write(p[1], text)
+    _close(p[1])
+    return _wait(pid)
+}
+
+// left | right; returns right's exit code
+pipe :: (left, right) {
+    p := _pipe()
+    a := _spawn(left, 0, p[1], 2)
+    b := _spawn(right, p[0], 1, 2)
+    _close(p[0])
+    _close(p[1])
+    _wait(a)
+    return _wait(b)
+}
+
+// cmd > path
+redirect :: (cmd, path) {
+    fd := _open(path, "w")
+    code := _wait(_spawn(cmd, 0, fd, fd))
+    _close(fd)
+    return code
+}

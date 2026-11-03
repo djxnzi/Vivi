@@ -12,6 +12,7 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out);
 static bool type_is_void(AstNode *rt);
 static bool return_type_matches(AstNode *return_type, Value result);
 static Value eval_math(TokenType op, Value l, Value r);
+static Value eval_concat(Value l, Value r);
 static void array_needs_capacity(ObjArray *a, int needed);
 static void* grow_array(void *arr, int count, int *capacity, size_t elem_size, int min_cap);
 static int array_find_index(ObjArray *a, long target);

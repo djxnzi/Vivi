@@ -69,18 +69,19 @@ static Value* resolve_place(AstNode *node, bool create, bool *fresh) {
     }
 }
 
-static TokenType assign_op_to_math(TokenType op) {
+static Value assign_op_eval(TokenType op, Value old, Value rhs) {
     switch (op) {
-        case TOK_PLUSEQ:  return TOK_PLUS;
-        case TOK_MINUSEQ: return TOK_MINUS;
-        case TOK_STAREQ:  return TOK_STAR;
-        case TOK_MODEQ:   return TOK_PERCENT;
-        default:          return TOK_SLASH;
+        case TOK_PLUSEQ:  return eval_math(TOK_PLUS, old, rhs);
+        case TOK_MINUSEQ: return eval_math(TOK_MINUS, old, rhs);
+        case TOK_STAREQ:  return eval_math(TOK_STAR, old, rhs);
+        case TOK_MODEQ:   return eval_math(TOK_PERCENT, old, rhs);
+        case TOK_TILDEEQ: return eval_concat(old, rhs);
+        default:          return eval_math(TOK_SLASH, old, rhs);
     }
 }
 
 static void assign_apply(Value *slot, TokenType op, Value rhs, bool fresh) {
-    if (op != TOK_ASSIGN && !fresh) rhs = eval_math(assign_op_to_math(op), *slot, rhs);
+    if (op != TOK_ASSIGN && !fresh) rhs = assign_op_eval(op, *slot, rhs);
     *slot = value_copy(rhs);
 }
 
@@ -313,16 +314,7 @@ static Value eval_expr(AstNode *node) {
             if (op == TOK_EQ)  return make_bool(values_equal(l, r));
             if (op == TOK_NEQ) return make_bool(!values_equal(l, r));
 
-            if (op == TOK_TILDE) {
-                Value ls = make_str_from_value(l);
-                Value rs = make_str_from_value(r);
-                ObjStr *a = (ObjStr*)ls.as.obj, *b = (ObjStr*)rs.as.obj;
-                int total = a->len + b->len;
-                char *buf = (char*)arena_alloc(total);
-                memcpy(buf, a->chars, a->len);
-                memcpy(buf + a->len, b->chars, b->len);
-                return make_str(buf, total);
-            }
+            if (op == TOK_TILDE) return eval_concat(l, r);
 
             if (op == TOK_IN) {
                 if (r.type != ValueType::Array) {
@@ -559,6 +551,9 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
     call_env->call_name_len = shape.len;
     call_env->call_line = call_line;
     call_env->call_col = call_col;
+    call_env->call_file = current_file;
+    call_env->call_source = program_source;
+    
     if (self) {
         call_env->has_self = true;
         call_env->self_binding = *self;

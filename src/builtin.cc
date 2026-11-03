@@ -86,6 +86,56 @@ static Value builtin_run(ObjFn *fn, Value *args) {
     return make_int(status);
 }
 
+static Value builtin_pipe(ObjFn *fn, Value *args) {
+    (void)fn; (void)args;
+    int fds[2];
+    if (pipe2(fds, O_CLOEXEC) < 0) { print_err("io_pipe", strerror(errno)); return make_null(); }
+    ObjArray *arr = (ObjArray*)arena_alloc(sizeof(ObjArray));
+    arr->obj.type = ValueType::Array;
+    arr->obj.refcount = 0;
+    arr->count = arr->capacity = 2;
+    arr->keys  = (Value*)arena_alloc(sizeof(Value) * 2);
+    arr->items = (Value*)arena_alloc(sizeof(Value) * 2);
+    arr->keys[0] = make_null();
+    arr->keys[1] = make_null();
+    arr->items[0] = make_int(fds[0]);
+    arr->items[1] = make_int(fds[1]);
+    Value v; v.type = ValueType::Array; v.as.obj = (Obj*)arr;
+    return v;
+}
+
+static Value builtin_spawn(ObjFn *fn, Value *args) {
+    if (!is_text(args[0]) || args[1].type != ValueType::Int || args[2].type != ValueType::Int
+        || args[3].type != ValueType::Int) return builtin_error(fn);
+    ObjStr *cmd = (ObjStr*)args[0].as.obj;
+    char *line = builtin_cstr(cmd);
+    int in = (int)args[1].as.i, out = (int)args[2].as.i, err = (int)args[3].as.i;
+    fflush(stdout);
+    fflush(stderr);
+    pid_t pid = fork();
+    if (pid < 0) { print_err("io_run", cmd->len, cmd->chars, strerror(errno)); return make_null(); }
+    if (pid == 0) {
+        if (in != 0) dup2(in, 0);
+        if (out != 1) dup2(out, 1);
+        if (err != 2) dup2(err, 2);
+        execl("/bin/sh", "sh", "-c", line, (char*)nullptr);
+        _exit(127);
+    }
+    return make_int(pid);
+}
+
+static Value builtin_wait(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int) return builtin_error(fn);
+    int status;
+    if (waitpid((pid_t)args[0].as.i, &status, 0) < 0) {
+        print_err("io_wait", (int)args[0].as.i, strerror(errno));
+        return make_null();
+    }
+    if (WIFEXITED(status)) return make_int(WEXITSTATUS(status));
+    if (WIFSIGNALED(status)) return make_int(128 + WTERMSIG(status));
+    return make_int(status);
+}
+
 static Value builtin_seed(ObjFn *fn, Value *args) {
     if (args[0].type != ValueType::Int) return builtin_error(fn);
     srand((unsigned int)args[0].as.i);
@@ -102,11 +152,25 @@ static Value builtin_exit(ObjFn *fn, Value *args) {
 
 static Value builtin_traceback(ObjFn *fn, Value *args) {
     (void)fn; (void)args;
+    Env *frame = global_env;
+    const char *saved_file = current_file;
+    const char *saved_source = program_source;
+    int line = current_line, col = current_col;
+    if (frame->caller && frame->call_line > 0) {
+        line = frame->call_line;
+        col = frame->call_col;
+        current_file = frame->call_file;
+        program_source = frame->call_source;
+        global_env = frame->caller;
+    }
     char *buf = nullptr;
     size_t size = 0;
     FILE *cap = open_memstream(&buf, &size);
-    print_traceback(current_line, current_col, cap);
+    print_traceback(line, col, cap);
     fclose(cap);
+    current_file = saved_file;
+    program_source = saved_source;
+    global_env = frame;
     char *owned = (char*)arena_alloc(size + 1);
     memcpy(owned, buf, size);
     owned[size] = '\0';
@@ -210,6 +274,9 @@ static const Builtin builtin_table[] = {
     { "_close",     1, builtin_close },
     { "_run",       1, builtin_run },
     { "_seed",      1, builtin_seed },
+    { "_pipe",      0, builtin_pipe },
+    { "_spawn",     4, builtin_spawn },
+    { "_wait",      1, builtin_wait },
 };
 
 static void register_builtins(Env *env) {

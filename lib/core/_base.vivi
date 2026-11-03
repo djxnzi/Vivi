@@ -31,8 +31,8 @@ panic := (string str) {
         127: file not found
         134: panic
     */
-    print("panic(): {str}")
-    print(_traceback()); // Points to itself, wrong
+    println("panic(): {str}")
+    println(_traceback());
     exit(134);
 }
 
@@ -40,8 +40,16 @@ timestamp := () {
     return _clock()
 }
 
+traceback := () {
+    return _traceback()
+}
+
 rand := () {
     return _rand()
+}
+
+seed := (i32 n) {
+    _seed(n)
 }
 
 i32 hash := (string v) {
@@ -170,43 +178,43 @@ _text_greater := (l, r) {
 
 // Casts
 
-bool bool := (v) {
+bool := (v) {
     return _cast(v, "bool")
 }
-i8 i8 := (v) {
+i8 := (v) {
     return _cast(v, "i8")
 }
-i16 i16 := (v) {
+i16 := (v) {
     return _cast(v, "i16")
 }
-i32 i32 := (v) {
+i32 := (v) {
     return _cast(v, "i32")
 }
-i64 i64 := (v) {
+i64 := (v) {
     return _cast(v, "i64")
 }
-u8 u8 := (v) {
+u8 := (v) {
     return _cast(v, "u8")
 }
-u16 u16 := (v) {
+u16 := (v) {
     return _cast(v, "u16")
 }
-u32 u32 := (v) {
+u32 := (v) {
     return _cast(v, "u32")
 }
-u64 u64 := (v) {
+u64 := (v) {
     return _cast(v, "u64")
 }
-f32 f32 := (v) {
+f32 := (v) {
     return _cast(v, "f32")
 }
-f64 f64 := (v) {
+f64 := (v) {
     return _cast(v, "f64")
 }
-rune rune := (v) {
+rune := (v) {
     return _cast(v, "rune")
 }
-string string := (v) {
+string := (v) {
     return _cast(v, "string")
 }
 // Explicit cast

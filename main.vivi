@@ -1,275 +1,636 @@
-#import "Core"
+#!/usr/bin/env vivi
+
+// This is a work in progress showcase of Vivi, language is still in alpha
+// Run this from the project root
+// echo "Black Mage" | ./build/vivi tests/showcase.vivi
+
+// Imports, imported flat but use "as" to give imports a namespace
+#import "Strings"
 #import "Math"
+#import "Io"
+#import "Sys"
+#import "Time" as clock
 
-void run :: () {
+println("\n")
+println("Hi yes hello, welcome to Vivi. This is a wip showcase of the language.")
+println("Some things are still currently broken, like type widths,\nso expect the alpha to still be a little jank.")
+println("A few comments and explanations are available within this .vivi file.\n")
+println("~djinzi")
+println("\n")
 
-    println("\n")
+// Multiple different comment styles
+# hash comment
+;; double-semicolon comment
+// line comment
+/* block comment */
 
-    println("This is a rough test to show some very basic syntax. Use './build/vivi .' to run.")
-    println("Expect a lot of broken stuff right now.\n")
-    println("Not a complete example, see libraries for more.\n")
+// Top level :: is order independent on variable and function declarations
+B :: A + 1
+A :: 5
 
-    // Todo: add printf()
+// Phrases are used as grammar extension, only work top level right now
+#phrase i32 inc :: (i32 x) {
+    return x + 1
+}
+#phrase when :: (cond, block body) {
+    if cond { return body }
+}
 
-    hello := "Hello, Black Mage!"
-    println(hello)
-    println("Length:", hello.len(), "\nChar at 0:", hello.char_at(0), "\nHash:", hash(hello))
+when true {
+    println("[proctime] grammar word 'when' expanded")
+}
+when false {
+    println("this never runs")
+}
 
-    print("\n")
+// Methods are chained functions, ie var.double
+// () isn't required on methods if no arguments are needed
+#method i32 double :: () {
+    return self * 2
+}
+#method shout := () {
+    return to_upper(self) ~ "!"
+}
 
-    // Defer
-    cleanup :: () { println("This was deferred \n") }
-    defer cleanup()
-    // Might want defer {} scopes for deferred blocks, qol thing
+// Structws & Enums
+struct Point {
+    i32 x: 0,
+    i32 y: 0
+}
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+enum Op {
+    Start,
+    Update,
+    Stop
+}
 
-    /****************************/
-    // Declarations
-    immutable_var :: 0
-    mutable_var := 0
-    mutable_var = 1
+// ext is a magic file handler type for metadata, currently underspec'd
+ext readme :: "../README.md"    // resolves relative to this script
 
-    i32 bare_declaration
+TMP :: "build/showcase.txt"
+
+header := (string title) {
+    println("\n[{title}]")
+}
+
+section := (string title, f) {
+    header(title)
+    try { 
+        f()
+    } catch (err) {
+        println("!! section failed:", err)
+    }
+}
+
+// Language features
+
+decls :: () {
+    immutable :: 1 // :: is always const immutable and set during proctime
+    mutable := 1 // := is mutable
+    mutable = 2 // = is always reassign
+    i32 bare // should default to a null value
+
+    // Mass declarations, vivi original
     u32 {
-        mass_decl_a := 1
-        mass_decl_b := 2
+        mass_a := 1
+        mass_b := 2
     }
 
-    local lx := 1
-    static i32 sx := 0
+    local scoped := 3
+    static i32 calls := 0
+    calls += 1 // additive, -= should work too
+    a := 1; b := 2; a = 5; b = 6
+    println("immutable {immutable}, mutable {mutable}, bare {bare}, mass {mass_a} {mass_b}")
+    println("local {scoped}, static {calls}, ; separated {a} {b}")
+    println("order-independent B :: A + 1 ->", B)
 
-    // Types
-    println("Types aren't fully working yet.")
-    println("bool: {bool(100000000)}")
-    println("i8: {i8(100000000)}")
-    println("i16: {i16(100000000)}")
-    println("i32: {i32(100000000)}")
-    println("i64: {i64(100000000)}")
-    println("u8: {u8(100000000)}")
-    println("u16: {u16(100000000)}")
-    println("u32: {u32(100000000)}")
-    println("u64: {u64(100000000)}")
-    println("f32: {f32(100000.10)}")
-    println("f64: {f64(100000.10)}")
-    println("rune: {rune('a')}")
-    println("string: {string(100000000)}")
+    divmod :: (x, y) {
+        return x / y, x % y
+    }
 
-    print("\n")
+    q, r := divmod(7, 2)
+    println("divmod(7, 2) ->", q, r)
 
-    // Arrays
-    println("Arrays")
+    countdown := (n) {
+        if n == 0 { return 0 }
+        return countdown(n - 1)
+    }
+    println("recursive := fn ->", countdown(3))
+}
+
+types :: () {
+    println("bool:", bool(100000000))
+    println("i8:", i8(100000000), "i16:", i16(100000000), "i32:", i32(100000000), "i64:", i64(100000000))
+    println("u8:", u8(100000000), "u16:", u16(100000000), "u32:", u32(100000000), "u64:", u64(100000000))
+    println("f32:", f32(100000.10), "f64:", f64(100000.10))
+    println("rune:", rune('a'), "rune(65):", rune(65), "i32('a'):", i32('a'), "i32(\"42\"):", i32("42"))
+    println("string:", string(100000000))
+    println("int alias:", int(3.9), "float alias:", float(3))
+    myint := i32
+    println("alias myint(7.5):", myint(7.5))
+
+    v := 100
+    println("v == i32:", v == i32, "v != string:", v != string)
+    cast(v, string)
+    println("after cast(v, string), v == string:", v == string)
+
+    void nothing :: () { }
+    println("void call yields:", nothing())
+}
+
+operators :: () {
+    x := 10
+    x += 5; x -= 3; x *= 2; x /= 4; x %= 4
+    x++
+    x--
+    println("compound ops ->", x)
+    println("1 == 1, 1 != 2, 1 not 2, 1 in [1,2,3], true and false, true or false, !true")
+    println(1 == 1, 1 != 2, 1 not 2, 1 in [1,2,3], true and false, true or false, !true)
+    println("&& / ||:", true && false, true || false)
+    println("< <= > >=:", 1 < 2, 2 <= 2, 3 > 4, 4 >= 4)
+    println("ternary:", x > 1 ? "big" : "small")
+    println("concat:", "a" ~ "b" ~ "c")
+    n := null
+    println("fallback null | 7:", n | 7, " int | int:", 5 | 2)
+    println("bitwise 5&3 5^3 ~5 1<<2 8>>2:", 5 & 3, 5 ^ 3, ~5, 1 << 2, 8 >> 2)
+    println("precedence 1 << 2 + 1:", 1 << 2 + 1, " 6 & 3 == 2:", 6 & 3 == 2)
+}
+
+coercion :: () {
+    println("\"10\" + 5 =", "10" + 5)
+    println("\"10\" + \"10\" =", "10" + "10")
+    i32 parsed := "10"
+    println("i32 parsed := \"10\" ->", parsed + 1)
+    x := 5
+    y := 10
+    println("interp {x + y}, adjacency 10{x}, pair {x}{y}")
+}
+
+arrays :: () {
     t := [1, 2, 3]
-    t2 := ["key": [1,2,3], 4, 5]
-    println(t[0], t2["key"], t2["key", 0])
-    println(t2["key"][1])
+    t2 := ["key": [1, 2, 3], 4, 5]
+    println("t[0], t2[\"key\"], t2[\"key\", 0], t2[\"key\"][1]:", t[0], t2["key"], t2["key", 0], t2["key"][1])
     t[0] = 9
-    t2[0] += 1
+    t2["key"][0] += 100
     t[10] = 5
     t2["new"] = 1
     t["a"] = 1
-    println(t["a"], t['a'])
-    t.push(6); t.pop(); t.add(1, 99); t.take(0); t.sort(); t.len()
-    t.empty()
-    i32[10] sized
-    i32[10] filled := 0
-    i32[10] copied := [1,2,3]
-    
-    print("\n")
+    println("after writes:", t, t2)
+    println("t[\"a\"] == t['a']:", t["a"] == t['a'])
 
-    // Structs
-    struct Point {
-        i32 x: 0,
-        i32 y: 0
-    }
+    m := [3, 1, 2]
+    m.push(6)
+    println("push(6):", m)
+    println("pop():", m.pop(), m)
+    m.add(1, 99)
+    println("add(1, 99):", m)
+    println("take(0):", m.take(0), m)
+    m.sort()
+    println("sort():", m, "len():", m.len())
+    words := ["pear", "Apple", "fig"]
+    words.sort()
+    println("sort() text:", words)
+    m.empty()
+    println("empty():", m, m.len())
+
+    i32[3] sized
+    i32[3] filled := 0
+    i32[2] copied := [1, 2]
+    println("sized:", sized, "filled:", filled, "copied:", copied)
+}
+
+strings :: () {
+    s := "Hello, Black Mage!" // Please make this the vivi Hello, World tradition thank u
+    println("len:", s.len(), "char_at(0):", s.char_at(0), "hash:", hash(s))
+    println("index_of(\"Black\"):", index_of(s, "Black"))
+    println("is_digit('7'), is_digit('x'):", is_digit('7'), is_digit('x'))
+    println("has_prefix \"Hello\":", has_prefix(s, "Hello"), "has_suffix \"Mage!\":", has_suffix(s, "Mage!"))
+    println("contains \"Black\":", contains(s, "Black"))
+    println("substring(7, 12):", substring(s, 7, 12))
+    println("split(\"a,b,c\", \",\"):", split("a,b,c", ","))
+    println("split(\"abc\"):", split("abc"))
+    println("join:", join("foo", "bar"))
+    println("replace:", replace(s, "Black", "White"))
+    println("trim:", "[" ~ trim("  padded \t\n") ~ "]")
+    println("to_upper:", to_upper(s), "to_lower:", to_lower(s))
+    println("reverse:", reverse(s))
+    println("to_pascal_case:", to_pascal_case("black mage spell"))
+    println("to_camel_case:", to_camel_case("black mage spell"))
+    println("to_snake_case:", to_snake_case("Black Mage Spell"))
+}
+
+structs :: () {
     p := Point(1, 2)
-    println("Dump a raw struct into a print:", p)
-
+    println("Point(1, 2):", p)
     px, py := p
-    println("px: {px}, py: {py}")
+    println("destructure px {px}, py {py}")
+    p.x = 10
+    q := p
+    q.x = 99
+    println("copy on assign p.x {p.x}, q.x {q.x}")
+    for key, val in p { println("  field", key, "=", val) }
 
-    print("\n")
+    mage := {
+        name: "Vivi",
+        greet: () {
+            println("method field:", self.name)
+        }
+    }
+    mage.greet()
 
-    // Operators
-    println("1 == 1, 1 != 2, 1 in [1,2,3], true and false, true or false, !true")
-    println(1 == 1, 1 != 2, 1 in [1,2,3], true and false, true or false, !true, "\n")
+    println("enum Color:", Color.Red, Color.Green, Color.Blue)
+    println("ext readme:", readme)
+}
 
-    // Pointers
-    println("Pointers")
-    px2 := 5
-    i32 *ptr := &px2
+pointers :: () {
+    x := 5
+    i32 *ptr := &x
     ptr* = 6
     ptr* += 4
+    println("x after ptr* = 6, ptr* += 4:", x)
     z := 1
     ptr = &z
-    println(ptr*)
-    Point *vpp := &p
-    println(vpp.x)
-    vpp.x = 42
+    println("rebound ptr*:", ptr*)
     q := ptr
-    println(ptr == q)
+    println("q == ptr:", q == ptr)
 
-    print("\n")
+    p := Point(1, 2)
+    Point *vp := &p
+    vp.x = 42
+    println("vp.x = 42 -> p.x:", p.x)
 
-    // Enums
-    enum Color { Red, Green, Blue }
-    println("Enums - Red: {Color.Red}, Green: {Color.Green}, Blue: {Color.Blue}")
+    arr := [1, 2, 3]
+    i32 *ep := &arr[0]
+    ep* = 7
+    println("&arr[0] write -> arr:", arr)
+}
 
-    print("\n")
+functions :: () {
+    i32 mult :: (a, b) { return a * b }
+    inferred :: (a) { return a }
+    i32 mutable_fn := (a) { return a }
+    mutable_fn = (a) { return a * 10 }
+    println("mult(2, 3):", mult(2, 3), "inferred:", inferred("x"), "reassigned := fn:", mutable_fn(2))
 
-    // Functions
+    () { println("bare anonymous fn fires immediately") }
 
-    i32 mult :: (a, b) {
-        return a * b
+    defaults :: (a := 1, f32 b := 2.0) { return a + b }
+    println("defaults():", defaults(), "defaults(5):", defaults(5))
+
+    // Grouped return types are also a Vivi original, currently only works for 2 rn i think
+    [i32 | string] either :: (flag) {
+        return flag ? 1 : "one"
     }
-    
-    mutable_fn := (a) {
-        return a
-    }
+    println("union return:", either(true), either(false))
 
-    () {
-        println("Anonymous function")
+    [i32, rune] pair :: () {
+        return 1, "a"
     }
+    n, c := pair()
+
+    println("multi return:", n, c, c == rune)
+
+    variadic :: (...) {
+        println("variadic argc", argc, "argv", argv)
+    }
+    variadic(1, "two", 3.0)
+
+    typed_variadic :: (i32 ...) {
+        println("typed variadic argc", argc)
+    }
+    typed_variadic(1, 2, 3)
+
+    bump :: (i32[] a) {
+        a.push(4)
+    }
+    orig := [1, 2, 3]
+    bump(orig)
+    println("pass-by-value, caller unchanged:", orig)
 
     pub :: () {
-        priv := () {
-            return println("Private functions work the same way as they do in structs")
-        }
+        priv := () { return "private fn" }
         return priv()
     }
-
-    fn_defaults :: (a := 1, f32 b := 2.0) { }
-    [i32 | string] fn_union_return :: () { return 1 }
-    [i32, string] fn_multi_return :: () { return 1, "a" }
-    variadic_fn :: (...) { println(argc, argv) }
-    typed_variadic_fn :: (i32 ...) { println(argc) }
-
-    println("Mult:", mult(1, 2))
-    pub()
-    // pub().priv() Should be able to do this, broken right now
-    // might not even want pub().priv(), may deprecate that at some point
-
-    print("\n")
-
-    // Lambdas
-    println("Lambdas")
-    handlers := [(){return 1}, (){return 2}]
-    println(handlers[0]())
-    dispatch := {log: (msg){println(msg)}}
-    dispatch.log("hi")
-    lazy := if true { (m){println(m)} } else { (m){} }
-    lazy("cond-fn")
-
-    print("\n")
-
-    // Bitwise
-    println("Bitwise: 5 & 3, 5 ^ 3, ~5, 1 << 2, 8 >> 2, 5 | 2")
-    println(5 & 3, 5 ^ 3, ~5, 1 << 2, 8 >> 2, 5 | 2)
-
-    print("\n")
-
-    // Control flow
-    println("Control Flow")
-    n := 10
-    if n < 0 { }
-    msg := if n > 50 {"big"} else {"small"}
-    while n > 5 { n -= 1 }
-    for i := 0; i < 3; i++ { }
-    for 0..10 { }
-    for i, val in t { }
-    for key, val in p { }
-
-    // ==== Switch ====
-    switch n {
-        1: println("one")
-        0..3: println("range")
-        default: println("other")
-    }
-    switch n {
-        i32: println("is int")
-        string: println("is str")
-    }
-    switch n in t {
-        1: println("member")
-        default: println("nope")
+    println(pub())
+    frame :: () {
+        priv := () { return "reached through the call's frame" }
     }
 
-    // Try/Catch
-    a := 0
-    try { a += 1 } catch (err) { println(err) }
+    // This one is weird, not sure if I want scoping to work like this
+    println("frame().priv():", frame().priv())
+    h := frame()
+    println("h.priv():", h.priv())
 
-    print("\n")
+    fns := []
+    for i := 0; i < 3; i++ { fns.push(() { return i }) }
+    println("loop closures:", fns[0](), fns[1](), fns[2]())
 
-    // Library examples
+    println("value phrase inc(41):", inc(41))
+}
 
-    r := "A"
-    s := "String"
+methods :: () {
+    a := 5
+    println("5.double:", 5.double, "a.double():", a.double())
+    println("chained a.double.double:", a.double.double)
+    println("mutable method shout:", "vivi".shout())
 
-    println("Rune: {r}")
-    println("String: {s}")
-
-    print("\n")
-
-    println("Rune is digit?", is_digit(rune(r)))
-    println("String has prefix S?", has_prefix(s, "S"))
-    println("String has suffix n?", has_prefix(s, "n"))
-    println("String contains \"ring\"?", contains(s, "ring"))
-    
-    print("\n")
-
-    println("Split string")
-    split_str := split(s)
-    for i in split_str {
-        print(i ~ ",")
+    #method shout = () {
+        return to_lower(self) ~ "..."
     }
-    
-    println("\n")
 
-    temp := replace(s, "r", "")
-    new_s := replace(temp, "t", "b")
+    println("reassigned shout:", "VIVI".shout())
+}
 
-    println("String replacement:", new_s)
-    println("to_upper()", to_upper(new_s))
-    println("to_lower()", to_lower(new_s))
-    println("reverse()", reverse(new_s))
-    println("to_pascal_case()", to_pascal_case(new_s ~ " " ~ s))
-    println("to_camel_case()", to_camel_case(new_s ~ " " ~ s))
-    println("to_snake_case()", to_snake_case(new_s ~ " " ~ s))
+lambdas :: () {
+    handlers := [
+        () {
+            return 1
+        },
+        () {
+            return 2 
+        }
+    ]
+    println("handlers[1]():", handlers[1]())
 
-    print("\n")
+    actions := [
+        () {
+            return "start"
+        },
+        () {
+            return "update"
+        },
+        () {
+            return "stop"
+        }
+    ]
+    println("actions[Op.Update]():", actions[Op.Update]())
 
-    hash_me := "banana"
-    println("Hash {hash_me}")
-    print("Output: {hash(hash_me)}")
-
-    println("\n")
-
-    int cast_me := 100
-    if (cast_me == i32) println("Current type is i32")
-
-    cast(cast_me, string)
-
-    if (cast_me == string) println("Value cast to string")
-
-    print("\n")
-
-    // Fizzbuzz
-    println("Fizzbuzz")
-    for i in 1..101 {
-        if i % 3 == 0 and i % 5 == 0 {
-            print("FizzBuzz")
-        } else if i % 3 == 0 {
-            print("Fizz")
-        } else if i % 5 == 0 {
-            print("Buzz")
-        } else {
-            print(i)
+    dispatch := {
+        log: (msg) {
+            println("log:", msg)
         }
     }
+    dispatch.log("hi")
 
-    println("\n")
+    each := (arr, f) {
+        for v in arr {
+            f(v)
+        }
+    }
+    map := (arr, f) {
+        out := []
+        for v in arr {
+            out.push(f(v))
+        }
+        return out
+    }
+    each([1, 2], (x) {
+        println("each:", x)
+    })
+    println("map:", map([1, 2, 3], (n) { return n * 2 }))
 
+    // If as expression
+    lazy := if true {
+        (m) {
+            println(m)
+        }
+    } else {
+        (m) {
+            // Do nothing
+        }
+    }
+    lazy("if as expression fn")
+
+    tasks := [
+        () {
+            return factorial(5)
+        }
+    ]
+    println("deferred task:", tasks[0]())
+}
+
+control :: () {
+    n := 10
+
+    if n < 0 {
+        println("neg")
+    } else if n == 0 {
+        println("zero")
+    } else {
+        println("if/else if/else: positive")
+    }
+
+    if n > 5 println("braceless if") else println("braceless else")
+
+    msg := if n > 50 {
+        "big"
+    } else {
+        "small"
+    }
+    println("if expression:", msg)
+    
+    while n > 5 {
+        n -= 1
+    }
+    println("while ->", n)
+
+    count := 0
+    for 0..10 {
+        count += 1
+    }
+    println("for 0..10 runs", count, "times")
+
+    for i := 0; i < 3; i++ {
+        print(i)
+    }
+    println("")
+
+    for i, v in ["a", "b"] {
+        print("{i}:{v} ")
+    }
+    println("")
+
+    for v in [7, 8] {
+        print(v)
+    }
+    println("")
+
+    for i in 1..20 {
+        if i % 2 == 0 continue
+        if i > 7 break
+        print(i)
+    }
+    println("")
+}
+
+switches :: () {
+    n := 2
+    switch n {
+        1:
+            println("one")
+        0..3:
+            println("range 0..3")
+        default:
+            println("other")
+    }
+    switch n {
+        i32:
+            println("type match i32")
+        string:
+            println("type match string")
+    }
+    switch Point(1, 2) {
+        Point:
+            println("type match Point")
+        default:
+            println("not a point")
+    }
+    switch 1 {
+        1:
+            fallthrough
+        2:
+            println("fallthrough 1 -> 2")
+    }
+    switch n in [1, 2, 3] {
+        2:
+            println("switch in: member 2")
+        default:
+            println("nope")
+    }
+}
+
+errors :: () {
+    try {
+        i32 bad := "nope"
+    } catch (err) {
+        println("caught type error:", err)
+    }
+
+    println("panic() exits 134 and can't be caught; rerun with --panic to see it")
+
+    defer println("defer runs before errors() returns")
+    println("errors() body end")
+}
+
+// Core lib
+
+base_lib :: () {
+    print("print", "no", "newline")
+    println("")
+    println("println", 1, 2.5, true)
+    println("timestamp:", timestamp() > 0)
+    println("rand:", rand() >= 0)
+    println("hash(\"banana\"):", hash("banana"))
+}
+
+math_lib :: () {
+    println("pi e tau:", pi, e, tau)
+    println("inf nan:", inf, nan)
+    println("epsilon ln2 ln10:", epsilon, ln2, ln10)
+    println("abs min max:", abs(-3), min(1, 2), max(1, 2))
+    println("clamp lerp sign copysign:", clamp(15, 0, 10), lerp(0, 10, 0.5), sign(-4), copysign(3, -1))
+    println("trunc floor ceil round:", trunc(2.7), floor(-2.5), ceil(2.1), round(2.5))
+    println("fmod modf:", fmod(7.5, 2), modf(3.25))
+    println("sqrt cbrt hypot pow:", sqrt(16), cbrt(27), hypot(3, 4), pow(2, 10))
+    println("exp expm1:", exp(1), expm1(0.001))
+    println("log log10 log2:", log(e), log10(1000), log2(8))
+    println("sin cos tan:", sin(pi / 2), cos(0), tan(pi / 4))
+    println("asin acos atan atan2:", asin(1), acos(1), atan(1), atan2(1, 1))
+    println("sinh cosh tanh:", sinh(1), cosh(1), tanh(1))
+    println("asinh acosh atanh:", asinh(1), acosh(2), atanh(0.5))
+    println("deg_to_rad rad_to_deg:", deg_to_rad(180), rad_to_deg(pi))
+    println("gcd lcm factorial:", gcd(12, 18), lcm(4, 6), factorial(5))
+    println("gamma erf erfc:", gamma(5), erf(1), erfc(1))
+}
+
+io_lib :: () {
+    file_write(TMP, "line one\n")
+    file_append(TMP, "line two\n")
+    println("file_exists:", file_exists(TMP), file_exists("build/no_such_file"))
+    print("file_read:\n" ~ file_read(TMP))
+    println("file_lines:", file_lines(TMP))
+    eprint("eprint to stderr")
+    eprintln("")
+    eprintln("eprintln", "to", "stderr")
+}
+
+sys_lib :: () {
+    println("run exit code:", run("echo '  run: echo from process'"))
+    res := capture("printf captured")
+    println("capture:", res)
+    println("feed exit code:", feed("tr a-z A-Z", "fed through stdin\n"))
+    println("pipe exit code:", pipe("printf 'c\\nb\\na\\n'", "sort"))
+    println("redirect exit code:", redirect("echo redirected", TMP))
+    print("redirected file:", file_read(TMP))
+}
+
+time_lib :: () {
+    println("program_start:", clock.program_start > 0)
+    println("now:", clock.now())
+    println("dt:", clock.dt())
+    println("dateTime:", clock.dateTime(clock.now(), -8))
+    println("getTime 12h (PST):", clock.getTime(clock.now(), -8, false))
+    date := clock.dateTime(clock.now(), -8)
+    month := clock.getMonth(date[1] - 1)
+    day := clock.getDay(date[0], date[1], date[2])
+    println("getDay:", day, "getMonth:", month, "getMonth(0):", clock.getMonth(0), "getYear:", clock.getYear(date[2]))
+    println("formatDate:", clock.formatDate(day, month, date[2]))
 }
 
 void main :: (argc, argv) {
-    print("argv0:", argv[0])
-    run()
+    println("argv[0]:", argv[0], "argc:", argc)
+
+    section("Declarations", decls)
+    section("Types & casts", types)
+    section("Operators", operators)
+    section("Coercion & interpolation", coercion)
+    section("Arrays", arrays)
+    section("Strings", strings)
+    section("Structs, enums, ext", structs)
+    section("Pointers", pointers)
+    section("Functions", functions)
+    section("Methods", methods)
+    section("Lambdas", lambdas)
+    section("Control flow", control)
+    section("Switch", switches)
+    section("Errors & defer", errors)
+
+    section("Prelude (_base)", base_lib)
+    section("Math", math_lib)
+    section("Io", io_lib)
+    section("Sys", sys_lib)
+    section("Time (namespaced as clock)", time_lib)
+
+    // Fizzbuzz
+    header("Fizzbuzz")
+    for i in 1..15 {
+        if i % 3 == 0 and i % 5 == 0 { print("FizzBuzz ") }
+        else if i % 3 == 0 { print("Fizz ") }
+        else if i % 5 == 0 { print("Buzz ") }
+        else { print(i ~ " ") }
+    }
+    println("\n")
+
+    println("Entering terminal passthrough, from inside Vivi! (Ctrl+C or Ctrl+D to exit)")
+    while true {
+        print("> ")
+        line := read_line()
+        if line == null {
+            println("")
+            break
+        }
+        if line == "\n" continue
+        if line == "exit\n" break
+
+        code := run(line)
+        if code != 0 println("[exit {code}]")
+    }
+
+    // exit() leaves the process at once; pending defers don't run
+    if "--panic" in argv panic("showcase panic")
+    exit(0)
 }

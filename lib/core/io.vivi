@@ -1,0 +1,87 @@
+// File handling
+
+file_read := (path) {
+    fd := _open(path, "r")
+    text := ""
+    chunk := _read(fd, 4096)
+    while chunk != null {
+        text ~= chunk
+        chunk = _read(fd, 4096)
+    }
+    _close(fd)
+    return text
+}
+
+file_write := (path, text) {
+    fd := _open(path, "w")
+    _write(fd, text)
+    _close(fd)
+}
+
+file_append := (path, text) {
+    fd := _open(path, "a")
+    _write(fd, text)
+    _close(fd)
+}
+
+file_exists := (path) {
+    found := true
+    try {
+        _close(_open(path, "r"))
+    } catch (err) {
+        found = false
+    }
+    return found
+}
+
+file_lines := (path) {
+    text := file_read(path)
+    out := []
+    line := ""
+    for i := 0; i < _len(text); i++ {
+        c := text.char_at(i)
+        if c == "\n" {
+            out.push(line)
+            line = ""
+        } else {
+            line ~= c
+        }
+    }
+    if line != null out.push(line)
+    return out
+}
+
+// stdin
+
+read_line := () {
+    line := ""
+    c := _read(0, 1)
+    while c != null {
+        line ~= c
+        if c == "\n" break
+        c = _read(0, 1)
+    }
+    return line
+}
+
+input := (prompt) {
+    print(prompt)
+    return read_line()
+}
+
+// stderr
+
+eprint := (...) {
+    _write(2, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(2, " " ~ string(argv[i]))
+    }
+}
+
+eprintln := (...) {
+    _write(2, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(2, " " ~ string(argv[i]))
+    }
+    _write(2, "\n")
+}

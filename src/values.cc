@@ -44,6 +44,16 @@ static bool ident_is_type_name(const char *name, int len, ValueType *out_vt) {
     return false;
 }
 
+static bool is_empty_or_null(Value v) {
+    switch (v.type) {
+        case ValueType::Null:  return true;
+        case ValueType::Str:
+        case ValueType::Rune:  return ((ObjStr*)v.as.obj)->len == 0;
+        case ValueType::Array: return ((ObjArray*)v.as.obj)->count == 0;
+        default:               return false;
+    }
+}
+
 static bool values_equal(Value a, Value b) {
     bool a_text = (a.type == ValueType::Str || a.type == ValueType::Rune);
     bool b_text = (b.type == ValueType::Str || b.type == ValueType::Rune);
@@ -51,6 +61,12 @@ static bool values_equal(Value a, Value b) {
         ObjStr *sa = (ObjStr*)a.as.obj, *sb = (ObjStr*)b.as.obj;
         return sa->len == sb->len && memcmp(sa->chars, sb->chars, (size_t)sa->len) == 0;
     }
+
+    // Make null == empty value
+    if (a.type == ValueType::Null || b.type == ValueType::Null) {
+        return is_empty_or_null(a) && is_empty_or_null(b);
+    }
+
     if (a.type != b.type) {
         if (is_numeric(a) && is_numeric(b)) return as_double(a) == as_double(b);
         return false;
@@ -303,6 +319,17 @@ static Value eval_math(TokenType op, Value l, Value r) {
             print_err("unhandled_math_op", (int)op);
             return make_null();
     }
+}
+
+static Value eval_concat(Value l, Value r) {
+    Value ls = make_str_from_value(l);
+    Value rs = make_str_from_value(r);
+    ObjStr *a = (ObjStr*)ls.as.obj, *b = (ObjStr*)rs.as.obj;
+    int total = a->len + b->len;
+    char *buf = (char*)arena_alloc(total);
+    memcpy(buf, a->chars, a->len);
+    memcpy(buf + a->len, b->chars, b->len);
+    return make_str(buf, total);
 }
 
 static void array_needs_capacity(ObjArray *a, int needed) {

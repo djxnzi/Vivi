@@ -249,6 +249,7 @@ Token next_token(Lexer *lx) {
             return make_token(lx, TOK_SEMICOLON, start, 1, preceded_nl);
 
         case '~':
+            if (peek(lx) == '=') { advance(lx); return make_token(lx, TOK_TILDEEQ, start, 2, preceded_nl); }
             return make_token(lx, TOK_TILDE, start, 1, preceded_nl);
     }
 
@@ -358,6 +359,7 @@ const char *token_name(TokenType t) {
         case TOK_STAREQ:        return "STAREQ";
         case TOK_SLASHEQ:       return "SLASHEQ";
         case TOK_MODEQ:         return "MODEQ";
+        case TOK_TILDEEQ:       return "TILDEEQ";
 
         // Increment/decrement
         case TOK_PLUSPLUS:      return "PLUSPLUS";

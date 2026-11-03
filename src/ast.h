@@ -171,6 +171,7 @@ struct Env {
     bool has_self;
     int defer_count, defer_capacity;
     int call_line, call_col;
+    const char *call_file, *call_source;
     const char *call_name; int call_name_len;
     int loop_floor;
 };

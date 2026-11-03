@@ -260,14 +260,7 @@ static AstNode* exec_stmt(AstNode *node) {
 
                         Value rhs = eval_expr(node->value);
                         Value result = rhs;
-                        if (op != TOK_ASSIGN) {
-                            TokenType math_op = op == TOK_PLUSEQ    ? TOK_PLUS
-                                            : op == TOK_MINUSEQ     ? TOK_MINUS
-                                            : op == TOK_STAREQ      ? TOK_STAR
-                                            : op == TOK_MODEQ       ? TOK_PERCENT
-                                            :                          TOK_SLASH;
-                            result = eval_math(math_op, e->self_binding, rhs);
-                        }
+                        if (op != TOK_ASSIGN) result = assign_op_eval(op, e->self_binding, rhs);
                         e->self_binding = value_copy(result);
                         return nullptr;
                     }
@@ -282,11 +275,7 @@ static AstNode* exec_stmt(AstNode *node) {
                 Value *slot = (Value*)p.as.i;
                 TokenType op = node->op;
                 Value rhs = eval_expr(node->value), result = rhs;
-                if (op != TOK_ASSIGN) {
-                    TokenType m = op == TOK_PLUSEQ ? TOK_PLUS : op == TOK_MINUSEQ ? TOK_MINUS
-                                : op == TOK_STAREQ ? TOK_STAR : op == TOK_MODEQ ? TOK_PERCENT : TOK_SLASH;
-                    result = eval_math(m, *slot, rhs);
-                }
+                if (op != TOK_ASSIGN) result = assign_op_eval(op, *slot, rhs);
                 *slot = value_copy(result);
                 return nullptr;
             }
@@ -315,12 +304,7 @@ static AstNode* exec_stmt(AstNode *node) {
                     print_err("undefined", len, name);
                     return nullptr;
                 }
-                TokenType math_op = op == TOK_PLUSEQ    ? TOK_PLUS
-                                : op == TOK_MINUSEQ     ? TOK_MINUS
-                                : op == TOK_STAREQ      ? TOK_STAR
-                                : op == TOK_MODEQ       ? TOK_PERCENT
-                                :                       TOK_SLASH;
-                result = eval_math(math_op, old, rhs);
+                result = assign_op_eval(op, old, rhs);
             }
 
             EnvEntry *entry = env_find(global_env, name, len);

@@ -90,7 +90,7 @@ static bool is_assign_op(TokenType type) {
         case TOK_ASSIGN:
         case TOK_PLUSEQ: case TOK_MINUSEQ:
         case TOK_STAREQ: case TOK_SLASHEQ:
-        case TOK_MODEQ:
+        case TOK_MODEQ:  case TOK_TILDEEQ:
             return true;
         default:
             return false;

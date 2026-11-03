@@ -81,6 +81,8 @@ static const char* error_category(const char *code) {
         case hash("io_write"):
         case hash("io_close"):
         case hash("io_run"):
+        case hash("io_pipe"):
+        case hash("io_wait"):
             return "IO Error";
 
         default:
@@ -451,6 +453,8 @@ void print_err(const char* code, ...) {
         case hash("io_write"):                  fmt = "Could not write fd %d: %s."; break;
         case hash("io_close"):                  fmt = "Could not close fd %d: %s."; break;
         case hash("io_run"):                    fmt = "Could not run '%.*s': %s."; break;
+        case hash("io_pipe"):                   fmt = "Could not create a pipe: %s."; break;
+        case hash("io_wait"):                   fmt = "Could not wait for process %d: %s."; break;
 
         // General / runtime infra
         case hash("runtime_error"):             fmt = "Runtime error '%.*s'."; break;
