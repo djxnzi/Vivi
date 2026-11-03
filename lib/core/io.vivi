@@ -1,3 +1,50 @@
+// ANSI escape codes for cleaner output!
+
+ESC := string(rune(27))
+CSI := ESC ~ "["
+
+ansi_reset := CSI ~ "0m"
+
+// wrap text in a style code, then reset
+ansi := (code, text) {
+    return CSI ~ string(code) ~ "m" ~ string(text) ~ ansi_reset
+}
+
+// foreground colors
+black   := (s) { return ansi(30, s) }
+red     := (s) { return ansi(31, s) }
+green   := (s) { return ansi(32, s) }
+yellow  := (s) { return ansi(33, s) }
+blue    := (s) { return ansi(34, s) }
+magenta := (s) { return ansi(35, s) }
+cyan    := (s) { return ansi(36, s) }
+white   := (s) { return ansi(37, s) }
+gray    := (s) { return ansi(90, s) }
+
+// background colors
+bg_red   := (s) { return ansi(41, s) }
+bg_green := (s) { return ansi(42, s) }
+bg_blue  := (s) { return ansi(44, s) }
+
+// text styles
+bold      := (s) { return ansi(1, s) }
+dim       := (s) { return ansi(2, s) }
+italic    := (s) { return ansi(3, s) }
+underline := (s) { return ansi(4, s) }
+inverse   := (s) { return ansi(7, s) }
+
+// 24-bit color
+rgb := (r, g, b, text) {
+    return CSI ~ "38;2;" ~ string(r) ~ ";" ~ string(g) ~ ";" ~ string(b) ~ "m" ~ string(text) ~ ansi_reset
+}
+
+// screen / cursor control
+clear_screen := () { print(CSI ~ "2J" ~ CSI ~ "H") }
+clear_line   := () { print(CSI ~ "2K" ~ "\r") }
+cursor_to    := (row, col) { print(CSI ~ string(row) ~ ";" ~ string(col) ~ "H") }
+cursor_hide  := () { print(CSI ~ "?25l") }
+cursor_show  := () { print(CSI ~ "?25h") }
+
 // print functions
 
 print := (...) {
