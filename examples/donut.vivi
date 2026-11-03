@@ -12,7 +12,7 @@ BSTEP := 0.0352
 SECONDS := 10
 // ---------------
 
-ESC := "" ~ rune(27)
+ESCAPE_SEQ := "" ~ rune(27)
 W := 80
 H := 22
 SIZE := W * H
@@ -55,7 +55,7 @@ B := 0.0
 start := timestamp()
 frames := 0
 
-print(ESC ~ "[2J" ~ ESC ~ "[?25l")
+print(ESCAPE_SEQ ~ "[2J" ~ ESCAPE_SEQ ~ "[?25l")
 
 while timestamp() - start < SECONDS and frames < 1000 {
     sinA := sin(A)
@@ -97,7 +97,7 @@ while timestamp() - start < SECONDS and frames < 1000 {
     }
 
     // build the frame row by row, clearing the buffers in the same pass
-    frame := ESC ~ "[H"
+    frame := ESCAPE_SEQ ~ "[H"
     for row := 0; row < H; row++ {
         line := ""
         base := row * W
@@ -117,5 +117,5 @@ while timestamp() - start < SECONDS and frames < 1000 {
 }
 
 elapsed := timestamp() - start
-print(ESC ~ "[?25h")
+print(ESCAPE_SEQ ~ "[?25h")
 println("done, {frames} frames in {elapsed}s")
