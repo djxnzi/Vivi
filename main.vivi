@@ -79,7 +79,7 @@ header := (string title) {
 
 section := (string title, f) {
     header(title)
-    try { 
+    try {
         f()
     } catch (err) {
         println("!! section failed:", err)
@@ -351,7 +351,7 @@ lambdas :: () {
             return 1
         },
         () {
-            return 2 
+            return 2
         }
     ]
     println("handlers[1]():", handlers[1]())
@@ -432,7 +432,7 @@ control :: () {
         "small"
     }
     println("if expression:", msg)
-    
+
     while n > 5 {
         n -= 1
     }
@@ -525,6 +525,7 @@ base_lib :: () {
     println("timestamp:", timestamp() > 0)
     println("rand:", rand() >= 0)
     println("hash(\"banana\"):", hash("banana"))
+    printf("printf: coords:(%d, %d)", 42, 69)
 }
 
 math_lib :: () {
