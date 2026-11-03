@@ -18,6 +18,21 @@ println("A few comments and explanations are available within this .vivi file.\n
 println("~djinzi")
 println("\n")
 
+// ANSI colors and escape codes!
+println("You can use ansi escape codes")
+println(bold("bold text"))
+println(dim("dim text"))
+println(italic("italic text"))
+println(underline("underlined text"))
+println(inverse("inverse text"))
+
+println(red("red"), green("green"), blue("blue"), yellow("yellow"))
+println(bold(red("bold and red")))
+println(underline(cyan("underlined cyan")))
+println(bg_red(" FAIL "), bg_green(" PASS "))
+println(rgb(255, 128, 0, "orange"))
+
+
 // Multiple different comment styles
 # hash comment
 ;; double-semicolon comment
