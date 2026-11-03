@@ -210,7 +210,7 @@ pow := (base, exponent) {
 sin := (x) {
     x = fmod(x, 2 * pi)
     if (x < 0) { return -sin(-x) }
-    if (x > pi) { x = 2 * pi - x }
+    if (x > pi) { return -sin(x - pi) }
     if (x > pi / 2) { x = pi - x }
     result := 0.0
     term := x
