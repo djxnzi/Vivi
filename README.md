@@ -23,6 +23,15 @@ Vivi is NOT
 
 Currently only working on linux atm and not finished (alpha). Run ``./build.sh`` to build, ``./build/vivi examples/showcase.vivi`` to run the showcase
 
+to install the current version of vivi on nixos you add it to your flake and in configuration module.
+flake.nix of your system config
+`inputs.vivi.url = "github:djxnzi/vivi";`
+
+in your configuration module (make sure `inputs` is passed via specialArgs)
+`environment.systemPackages = [
+  inputs.vivi.packages.${pkgs.system}.default
+];`
+
 ---
 
 Syntax Highlighting is available for [vscode](https://marketplace.visualstudio.com/items?itemName=JulianKylander.vivi) and [tree-sitter](https://github.com/jkylander/tree-sitter-vivi), courtesy of [jkylander](https://github.com/jkylander).
