@@ -1,5 +1,7 @@
 # Vivi (.vivi)
 
+> Vivi is still a WIP and in alpha, so a lot of this isn't true right now and will be eventually
+
 Vivi is a hackable modern metaprogramming language with reflective preprocessing.
 
 It is a gradually typed, embeddable scripting lang with optional type annotation and a lightweight core.
@@ -7,6 +9,8 @@ It is a gradually typed, embeddable scripting lang with optional type annotation
 Vivi is interpreted, can interpret itself, and runs linearly. 
 
 Its #proctime phase works like #comptime, giving you full reflective access to the program before execution
+
+It also has grammar extension through a #phrase system
 
 Vivi is NOT
 - A language that has macros. Generate it with #proctime.
