@@ -1,7 +1,7 @@
 .PHONY: all build run clean help
 CXX		:= g++
 FLAGS  	:= -std=c++17 -Wall -Wextra -Isrc
-#MAKEFLAGS += --silent
+MAKEFLAGS += --silent
 SRCS   	:= main.cpp
 
 # Set default option
