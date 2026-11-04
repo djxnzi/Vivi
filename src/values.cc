@@ -348,7 +348,7 @@ static void* grow_array(void *arr, int count, int *capacity, size_t elem_size, i
     if (count < *capacity) return arr;
     int new_cap = *capacity < min_cap ? min_cap : *capacity * 2;
     void *new_arr = arena_alloc(elem_size * new_cap);
-    memcpy(new_arr, arr, elem_size * (size_t)count);
+    if (arr) memcpy(new_arr, arr, elem_size * (size_t)count);
     *capacity = new_cap;
     return new_arr;
 }
