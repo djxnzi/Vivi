@@ -1,6 +1,6 @@
 # Vivi (.vivi)
 
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/djxnzi/vivi?style=for-the-badge)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/djxnzi/vivi?style=for-the-badge) ![GitHub License](https://img.shields.io/github/license/djxnzi/vivi?style=for-the-badge)
 
 > Vivi is still in alpha and only works on Linux atm. Windows builds are planned, but aren't priority
 
