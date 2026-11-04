@@ -1,27 +1,34 @@
+.PHONY: all build run clean help
 CXX		:= g++
-FLAGS  	:= -std=c++17 -O2 -Wall -Wextra -MMD -MP
-BUILD  	:= build
-MAKEFLAGS += --silent
+FLAGS  	:= -std=c++17 -Wall -Wextra -Isrc
+#MAKEFLAGS += --silent
+SRCS   	:= main.cpp
 
-SRCS   	:= $(shell find . -type f -name "*.cpp" ! -path "./$(BUILD)/*" | sed 's|^\./||')
-OBJS   	:= $(SRCS:%.cpp=$(BUILD)/%.o)
-DEPS   	:= $(OBJS:.o=.d)
-TARGET 	:= $(BUILD)/vivi
-INCS	:= -Iinclude -Isrc
+# Set default option
+BUILD   ?= debug
 
-all: $(TARGET)
+ifeq ($(BUILD),debug)
+	FLAGS += -ggdb3 -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
+else ifeq ($(BUILD),release)
+	FLAGS += -O2 -flto -march=native
+else
+	$(info Unknown BUILD=$(BUILD); use debug or release)
+endif
 
-$(TARGET): $(OBJS)
-	$(CXX) $(FLAGS) $(INCS) $^ -o $@ 
-	rm -f $(OBJS) $(DEPS)
-	@echo "Vivi build done."
+all: build/vivi
 
-$(BUILD)/%.o: %.cpp
-	@mkdir -p $(dir $@)
-	$(CXX) $(FLAGS) $(INCS) -c $< -o $@
-
-.PHONY: clean
 clean:
-	rm -rf $(BUILD)
+	rm -rf build
 
--include $(DEPS)
+build:
+	mkdir -p build
+
+build/vivi: build $(SRCS)
+	$(CXX) -o $@ $(SRCS) $(FLAGS)
+
+help:
+	@echo "Usage:"
+	@echo "  make               - Build main program with default flags"
+	@echo "  make BUILD=debug   - Build with debug flags"
+	@echo "  make BUILD=release - Build with release flags"
+	@echo "  make clean         - Remove build artifacts"
