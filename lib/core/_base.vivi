@@ -1,3 +1,176 @@
+// print functions
+
+print := (...) {
+    _write(1, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(1, " " ~ string(argv[i]))
+    }
+}
+
+println := (...) {
+    _write(1, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(1, " " ~ string(argv[i]))
+    }
+
+    _write(1, "\n")
+}
+
+printf := (string fmt, ...) {
+    a := 0
+    for i := 0; i < fmt.len; i++ {
+        if fmt.char_at(i) == "%" {
+            i++
+            if i >= fmt.len {
+                print("%")
+                break
+            }
+            spec := fmt.char_at(i)
+            base := 10
+            switch spec {
+                "x":
+                    base = 16
+                    fallthrough
+                "d":
+                    n := i32(argv[a])
+                    a++
+                    if n == 0 {
+                        print("0")
+                    }
+                    is_negative := false
+                    if n < 0 {
+                        if base == 10 {
+                            is_negative = true
+                            n = -n
+                        } else {
+                            n += 4294967296
+                        }
+                    }
+                    buf := []
+                    while n > 0 {
+                        rem := n % base
+                        if rem < 10 {
+                            buf.push(rune(rem + 48))
+                        } else {
+                            buf.push(rune(rem - 10 + 97))
+                        }
+                        n = n / base
+                    }
+                    if is_negative {
+                        print("-")
+                    }
+                    j := buf.len - 1
+                    while j >= 0 {
+                        print(string(buf[j]))
+                        j -= 1
+                    }
+                "s":
+                    s := argv[a]
+                    a++
+                    if s == null {
+                        s = "(null)"
+                    }
+                    print(string(s))
+                "c":
+                    print(string(rune(argv[a])))
+                    a++
+                "%":
+                    print("%")
+                default:
+                    print("%" ~ spec)
+            }
+        } else {
+            print(string(fmt.char_at(i)))
+        }
+    }
+}
+
+// stderr prints
+
+eprint := (...) {
+    _write(2, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(2, " " ~ string(argv[i]))
+    }
+}
+
+eprintln := (...) {
+    _write(2, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(2, " " ~ string(argv[i]))
+    }
+    _write(2, "\n")
+}
+
+eprintf := (string fmt, ...) {
+    a := 0
+    for i := 0; i < fmt.len; i++ {
+        if fmt.char_at(i) == "%" {
+            i++
+            if i >= fmt.len {
+                eprint("%")
+                break
+            }
+            spec := fmt.char_at(i)
+            base := 10
+            switch spec {
+                "x":
+                    base = 16
+                    fallthrough
+                "d":
+                    n := i32(argv[a])
+                    a++
+                    if n == 0 {
+                        eprint("0")
+                    }
+                    is_negative := false
+                    if n < 0 {
+                        if base == 10 {
+                            is_negative = true
+                            n = -n
+                        } else {
+                            n += 4294967296
+                        }
+                    }
+                    buf := []
+                    while n > 0 {
+                        rem := n % base
+                        if rem < 10 {
+                            buf.push(rune(rem + 48))
+                        } else {
+                            buf.push(rune(rem - 10 + 97))
+                        }
+                        n = n / base
+                    }
+                    if is_negative {
+                        eprint("-")
+                    }
+                    j := buf.len - 1
+                    while j >= 0 {
+                        eprint(string(buf[j]))
+                        j -= 1
+                    }
+                "s":
+                    s := argv[a]
+                    a++
+                    if s == null {
+                        s = "(null)"
+                    }
+                    eprint(string(s))
+                "c":
+                    eprint(string(rune(argv[a])))
+                    a++
+                "%":
+                    eprint("%")
+                default:
+                    eprint("%" ~ spec)
+            }
+        } else {
+            eprint(string(fmt.char_at(i)))
+        }
+    }
+}
+
 exit := (i32 code := 0) {
     code = code % 256
     exit_codes := [0, 1, 2, 127, 134]

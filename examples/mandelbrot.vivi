@@ -1,7 +1,5 @@
 // Mandlebrot by Xansidev - github.com/XansiOnGit
 
-#import "Io"
-
 shades := " .:-=+*#%@"
 
 for row := 0; row < 24; row++ {
