@@ -17,9 +17,9 @@
           # the makefile already uses g++, stdenv provides it
           installPhase = ''
             runHook preInstall
-            mkdir -p $out/bin $out/lib
+            mkdir -p $out/bin $out/lib/vivi
             cp build/vivi $out/bin/
-            cp -r lib/* $out/lib/        # gives $out/lib/core/io.vivi etc.
+            cp -r lib/. $out/lib/vivi/   # gives $out/lib/vivi/core/io.vivi etc.
             runHook postInstall
           '';
         };
