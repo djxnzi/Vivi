@@ -1,5 +1,7 @@
 # Vivi (.vivi)
 
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/djxnzi/vivi?style=for-the-badge) ![GitHub License](https://img.shields.io/github/license/djxnzi/vivi?style=for-the-badge)
+
 > Vivi is still in alpha and only works on Linux atm. Windows builds are planned, but aren't priority
 
 Vivi is intended to be a hackable modern metaprogramming language with reflective preprocessing. It's a gradually typed, embeddable scripting lang with optional type annotation and a lightweight core. Vivi is interpreted, can interpret itself, and runs linearly. Its #proctime phase works like #comptime, giving you full reflective access to the program before execution. It also has grammar extension through a #phrase system.
