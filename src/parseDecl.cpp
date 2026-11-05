@@ -5,11 +5,10 @@ static AstNode* parse_decl(Parser *p) {
     AstNode *type_size = nullptr;
     bool is_unsized_array = false;
     if (at_type_annotation(p) || (check(p, TOK_IDENT) && peek_at(p, 1).type == TOK_STAR)) {
-        type_annotation = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
-        parser_advance(p);
-        if (match(p, TOK_STAR)) {
-            type_annotation = make_unary(TOK_STAR, type_annotation, p->previous.line, p->previous.col);
-        } else if (match(p, TOK_LBRACKET)) {
+    type_annotation = take_ident(p);
+    if (match(p, TOK_STAR)) {
+        type_annotation = make_unary(TOK_STAR, type_annotation, p->previous.line, p->previous.col);
+    } else if (match(p, TOK_LBRACKET)) {
             if (!check(p, TOK_RBRACKET)) {
                 type_size = parse_expression(p);
             } else {
@@ -48,8 +47,8 @@ static AstNode* parse_decl(Parser *p) {
     return n;
 }
 
-static AstNode* parse_destructure_decl(Parser *p) {
-    int line = p->current.line, col = p->current.col;
+AstNode *type_annotation = nullptr;
+if (at_type_annotation(p)) type_annotation = take_ident(p);
 
     AstList targets;
     ast_list_init(&targets);
@@ -78,7 +77,7 @@ static AstNode* parse_destructure_decl(Parser *p) {
 
     if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl
         && !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-        parser_error(p, "expected newline or ';' after declaration");
+        expect_stmt_end(p, "expected newline or ';' after declaration");
     }
 
     int count;
@@ -102,12 +101,10 @@ static AstNode** parse_param_list(Parser *p, int *out_count) {
             if (match(p, TOK_STAR)) {
                 type_expr = make_unary(TOK_STAR, nullptr, p->previous.line, p->previous.col);
             } else if (at_type_annotation(p)) {
-                int tline = p->current.line, tcol = p->current.col;
-                type_expr = make_ident(p->current.start, p->current.len, tline, tcol);
-                parser_advance(p);
-                if (check(p, TOK_LBRACKET) && peek_at(p, 1).type == TOK_RBRACKET) {
-                    parser_advance(p); parser_advance(p);
-                    type_expr = make_array_type(type_expr, tline, tcol);
+            type_expr = take_ident(p);
+            if (check(p, TOK_LBRACKET) && peek_at(p, 1).type == TOK_RBRACKET) {
+            parser_advance(p); parser_advance(p);
+            type_expr = make_array_type(type_expr, type_expr->line, type_expr->col);
                 }
             }
 
@@ -144,19 +141,12 @@ static AstNode* parse_fn_lit(Parser *p, int line, int col) {
 }
 
 static AstNode* parse_leading_return(Parser *p) {
-    if (is_type_void(p->current)) {
-        AstNode *n = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
-        parser_advance(p);
-        return n;
-    }
+    if (is_type_void(p->current)) return take_ident(p); //look how much simpler this truly is?
+        
     if (match(p, TOK_LBRACKET)) {
-        AstNode *first = parse_single_return(p);
-        if (check(p, TOK_PIPE)) {
-            AstNode *left = first;
-            while (match(p, TOK_PIPE)) {
-                int l = p->previous.line, c = p->previous.col;
-                left = make_binary(TOK_PIPE, left, parse_single_return(p), l, c);
-            }
+            AstNode *first = parse_single_return(p);
+                if (!first) return nullptr;
+        
             expect(p, TOK_RBRACKET, "expected ']' after union return type");
             return left;
         }
@@ -214,26 +204,22 @@ static AstNode* parse_single_return(Parser *p) {
             parser_error(p, "expected type after '*' in return type");
             return nullptr;
         }
-        AstNode *pointee = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
-        parser_advance(p);
-        return make_unary(TOK_STAR, pointee, line, col);
+        return make_unary(TOK_STAR, take_ident(p), line, col);
     }
     if (!is_type_keyword(p->current.type) && !check(p, TOK_IDENT) && !check(p, TOK_STRUCT)) {
-        parser_error(p, "expected return type after '->'");
+        parser_error(p, "expected return type");
         return nullptr;
     }
-    int line = p->current.line, col = p->current.col;
-    AstNode *type_expr = make_ident(p->current.start, p->current.len, line, col);
-    parser_advance(p);
+    AstNode *type_expr = take_ident(p);
     if (check(p, TOK_LBRACKET) && peek_at(p, 1).type == TOK_RBRACKET) {
         parser_advance(p); parser_advance(p);
-        return make_array_type(type_expr, line, col);
+        return make_array_type(type_expr, type_expr->line, type_expr->col);
     }
     return type_expr;
 }
 
-static AstNode* parse_struct_decl(Parser *p) {
-    int line = p->current.line, col = p->current.col;
+AstNode *type_expr = nullptr;
+if (at_type_annotation(p)) type_expr = take_ident(p);
 
     expect(p, TOK_STRUCT, "expected 'struct'");
     expect(p, TOK_IDENT, "expected struct name");
@@ -303,7 +289,7 @@ static AstNode* parse_type_block(Parser *p) {
     int line = p->current.line, col = p->current.col;
 
     TokenType type_annotation = p->current.type;
-    AstNode *field_type = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
+    AstNode *field_type = take_ident(p);
     parser_advance(p);
 
     expect(p, TOK_LBRACE, "expected '{' after type in mass type declaration");
@@ -312,7 +298,8 @@ static AstNode* parse_type_block(Parser *p) {
     ast_list_init(&decls);
 
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-        expect(p, TOK_IDENT, "expected identifier in mass type declaration");
+    int dline = p->current.line, dcol = p->current.col;
+    expect(p, TOK_IDENT, "expected identifier in mass type declaration");
         const char *name = p->previous.start;
         int name_len = p->previous.len;
 
@@ -326,19 +313,20 @@ static AstNode* parse_type_block(Parser *p) {
         }
 
         AstNode *value = parse_expression(p);
+    expect_stmt_end(p, "expected newline or ';' after declaration in type block");
+
 
         if (match(p, TOK_SEMICOLON)) {
         } else if (p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF)) {
         } else {
-            parser_error(p, "expected newline or ';' after declaration in type block");
+            expect_stmt_end(p, "expected newline or ';' after declaration");
         }
 
         AstNode *decl = is_immutable
-            ? make_immut_decl(name, name_len, true, field_type, value, line, col)
-            : make_mut_decl(name, name_len, true, field_type, value, line, col);
-            
-        ast_list_push(&decls, decl);
-    }
+        ? make_immut_decl(name, name_len, true, field_type, value, dline, dcol)
+        : make_mut_decl(name, name_len, true, field_type, value, dline, dcol);
+    ast_list_push(&decls, decl);
+}
 
     expect(p, TOK_RBRACE, "expected '}' after mass type declaration");
 
@@ -376,10 +364,11 @@ static AstNode* parse_method(Parser *p) {
 
     AstNode *return_type = parse_leading_return(p);
     expect(p, TOK_IDENT, "expected method name after '#method'");
-    const char *name = p->previous.start;
-    int name_len = p->previous.len;
-
-    bool is_mut;
+        const char *name = p->previous.start;
+        int name_len = p->previous.len;
+        int nline = p->previous.line, ncol = p->previous.col;   // add
+            bool is_mut = false;                                     // initialize
+    
     if (match(p, TOK_IMMUT)) {
         is_mut = false;
     } else if (check(p, TOK_ASSIGN)) {
