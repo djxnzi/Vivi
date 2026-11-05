@@ -38,7 +38,17 @@ inline std::string default_lib_dir() {
     std::error_code ec;
     auto exe = std::filesystem::canonical("/proc/self/exe", ec);
     if (ec) return "./lib";   // old behavior as a last resort
-    return (exe.parent_path().parent_path() / "lib").string();
+
+    // Fix for new library location
+    auto root = exe.parent_path().parent_path();
+    if (std::filesystem::is_directory(root / "lib/vivi")) {
+        return (root / "lib/vivi").string();
+    }
+    if (std::filesystem::is_directory(root / "lib")) {
+        return (exe.parent_path().parent_path() / (exe.parent_path().filename() == "bin" ? "lib/vivi" : "lib")).string();
+    }
+
+    return "./lib";
 }
 
 // Vivi forward decl
