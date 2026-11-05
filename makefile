@@ -6,7 +6,7 @@ SRCS   	:= main.cpp
 SHELL	:= /bin/bash
 
 # Set default option
-BUILD   ?= debug
+BUILD   ?= release
 
 ifeq ($(BUILD),debug)
 	FLAGS += -ggdb3 -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
