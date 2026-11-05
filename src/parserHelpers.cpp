@@ -49,20 +49,6 @@ static void expect(Parser *p, TokenType type, const char *msg) {
     parser_advance(p);
 }
 
-// Consume the current token as an identifier node.
-static AstNode* take_ident(Parser *p) {
-    AstNode *n = make_ident(p->current.start, p->current.len,
-                            p->current.line, p->current.col);
-    parser_advance(p);
-    return n;
-}
-
-static void expect_stmt_end(Parser *p, const char *msg) {
-    if (!match(p, TOK_SEMICOLON) && !p->current.preceded_nl
-        && !check(p, TOK_RBRACE) && !check(p, TOK_EOF))
-        parser_error(p, msg);
-}
-
 static Precedence binary_precedence(TokenType type) {
     switch (type) {
         case TOK_OR:            return PREC_OR;
