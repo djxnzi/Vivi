@@ -21,4 +21,4 @@ Vivi is NOT
 - Finished and fully functional.
 ```
 
-For the full rundown, please see the [wiki](https://github.com/djxnzi/Vivi/wiki)
+For a getting started guide and the documentation, please see the [wiki](https://github.com/djxnzi/Vivi/wiki)
