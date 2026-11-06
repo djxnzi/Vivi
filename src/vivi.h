@@ -31,7 +31,7 @@ inline bool read_file(const char *path, std::string &out) {
 // VIVI_HOME wins if set (the Nix wrapper sets it) :3
 // Otherwise use <dir of the binary>/../lib, which works in the repo
 // (build/vivi -> ./lib) and for a plain install (bin/vivi -> ../lib)
-// Teehee :3
+// Teehee :3 - Xansi
 inline std::string default_lib_dir() {
     if (const char *env = std::getenv("VIVI_HOME"))
         return std::string(env) + "/lib";
