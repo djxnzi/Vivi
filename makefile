@@ -3,7 +3,12 @@ CXX		:= g++
 FLAGS  	:= -std=c++17 -Wall -Wextra -Isrc
 MAKEFLAGS += --silent
 SRCS   	:= main.cpp
-SHELL	:= /bin/bash
+
+# Works everywhere including NixOS.
+SHELL	:= /usr/bin/env bash
+
+# Defaults to /usr/local for standard Linux distros
+PREFIX  ?= /usr/local
 
 # Set default option
 BUILD   ?= release
@@ -25,28 +30,25 @@ build:
 	mkdir -p build
 
 install:
-	@sudo -k
-	@sudo -v || exit 1
-
 	@echo "Building Vivi..."
 	@TIMEFORMAT="Vivi built in %3R seconds"; time $(MAKE) build/vivi
 	@echo
 
-	@echo "Installing Vivi..."
-	@sudo install -Dm755 build/vivi /usr/bin/vivi
-	@sudo install -d /usr/lib/vivi/core
-	@sudo cp -a lib/core/. /usr/lib/vivi/core/
+	@echo "Installing Vivi to $(DESTDIR)$(PREFIX)..."
+	install -Dm755 build/vivi $(DESTDIR)$(PREFIX)/bin/vivi
+	install -d $(DESTDIR)$(PREFIX)/lib/vivi/core
+	cp -a lib/core/. $(DESTDIR)$(PREFIX)/lib/vivi/core/
 
-	@cmp -s build/vivi /usr/bin/vivi || { echo "Installation failed"; exit 1; }
+	@cmp -s build/vivi $(DESTDIR)$(PREFIX)/bin/vivi || { echo "Installation failed"; exit 1; }
 	@echo "Vivi installed successfully."
 	@echo
-	@sudo vivi --version
+	@$(DESTDIR)$(PREFIX)/bin/vivi --version
 
 uninstall:
 	@read -p "Are you sure you want to uninstall vivi? [y/N] " confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		sudo rm -f /usr/bin/vivi; \
-		sudo rm -rf /usr/lib/vivi; \
+		rm -f $(DESTDIR)$(PREFIX)/bin/vivi; \
+		rm -rf $(DESTDIR)$(PREFIX)/lib/vivi; \
 		echo "vivi uninstalled."; \
 	fi
 
@@ -59,5 +61,5 @@ help:
 	@echo "  make BUILD=debug   - Build with debug flags"
 	@echo "  make BUILD=release - Build with release flags"
 	@echo "  make clean         - Remove build artifacts"
-	@echo "  make install		- Installs Vivi to /usr/bin and /usr/lib"
+	@echo "  make install		- Installs Vivi to (PREFIX)/bin and (PREFIX)/lib"
 	@echo "  make uninstall		- Uninstalls Vivi from the system"

@@ -1,3 +1,8 @@
+#include <sys/mman.h>
+#include <cstdint>
+
+//Added these two imports as they are required for Malloc and free functionality.
+
 static Value builtin_error(ObjFn *fn) {
     print_err("builtin_contract", fn->native_name_len, fn->native_name);
     return make_null();
@@ -256,9 +261,50 @@ static Value builtin_cast(ObjFn *fn, Value *args) {
     return eval_typecast(t->chars, t->len, args[0]);
 }
 
+static Value builtin_mmap(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int || args[0].as.i <= 0) return builtin_error(fn);
+    void *p = mmap(nullptr, (size_t)args[0].as.i, PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (p == MAP_FAILED) return make_null();
+    return make_int((long)(uintptr_t)p);
+}
+
+static Value builtin_munmap(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int || args[1].type != ValueType::Int
+        || args[0].as.i == 0 || args[1].as.i <= 0) return builtin_error(fn);
+    munmap((void*)(uintptr_t)args[0].as.i, (size_t)args[1].as.i);
+    return make_null();
+}
+
+static Value builtin_peek(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int || args[0].as.i == 0) return builtin_error(fn);
+    return make_int(*(unsigned char*)(uintptr_t)args[0].as.i);
+}
+
+static Value builtin_poke(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int || args[1].type != ValueType::Int
+        || args[0].as.i == 0) return builtin_error(fn);
+    *(unsigned char*)(uintptr_t)args[0].as.i = (unsigned char)args[1].as.i;
+    return make_null();
+}
+
+static Value builtin_memcpy(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int || args[1].type != ValueType::Int
+        || args[2].type != ValueType::Int || args[0].as.i == 0 || args[1].as.i == 0
+        || args[2].as.i < 0) return builtin_error(fn);
+    memmove((void*)(uintptr_t)args[0].as.i, (void*)(uintptr_t)args[1].as.i,
+            (size_t)args[2].as.i);
+    return make_null();
+}
+
 struct Builtin { const char *name; int arity; NativeFn fn; };
 
 static const Builtin builtin_table[] = {
+    { "_mmap",   1, builtin_mmap },
+    { "_munmap", 2, builtin_munmap },
+    { "_peek",   1, builtin_peek },
+    { "_poke",   2, builtin_poke },
+    { "_memcpy", 3, builtin_memcpy },
     { "_write",     2, builtin_write },
     { "_exit",      1, builtin_exit },
     { "_traceback", 0, builtin_traceback },

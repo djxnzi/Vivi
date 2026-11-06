@@ -194,6 +194,35 @@ panic := (string str) {
     exit(134);
 }
 
+// Memory Management and such.
+
+_heap_ptr := 0
+_heap_end := 0
+
+malloc := (size) {
+    size = (size + 15) / 16 * 16
+    total := size + 16               // 16-byte header keeps alignment
+    if _heap_ptr + total > _heap_end {
+        chunk := 1048576
+        if total > chunk { chunk = total }
+        _heap_ptr = _mmap(chunk)
+        if _heap_ptr == null { panic("malloc(): out of memory!!") }
+        _heap_end = _heap_ptr + chunk
+    }
+    p := _heap_ptr
+    _heap_ptr += total
+    n := size
+    for i := 0; i < 8; i++ {         // store size in the header
+        _poke(p + i, n % 256)
+        n = n / 256
+    }
+    return p + 16
+}
+
+free := (ptr) { }                    // free list comes later as it should.
+
+memcpy := (dst, src, n) { _memcpy(dst, src, n) }
+
 timestamp := () {
     return _clock()
 }
