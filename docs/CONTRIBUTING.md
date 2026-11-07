@@ -9,6 +9,8 @@ Please always remember that Vivi is intended to be a hackable, modern metaprogra
 
 Everything about Vivi is a work in progress and you're encouraged to experiment. This file, as well as all policies, rules, and licenses are subject to change as time goes on.
 
+Fixes are free, but **every** proposal must run through djinzi first before submission. Ask first, test that your changes work, and then make a pr for review.
+
 ## AI Policy
 
 **No drive by AI bug fixes**. Period. Understand the code you propose and test it before submission.
