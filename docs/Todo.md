@@ -68,7 +68,7 @@ c := a + b // [2, 3, 3]
 ```
 
 ### Structural equality checks
-Identical structs/arrays don't math. Currently values_equal returns false in values.c.
+Identical structs/arrays don't match. Currently values_equal returns false in values.c.
 
 ### `copies` keyword
 The `copies` keyword is used to copy and extend, kind of like a constructor.
