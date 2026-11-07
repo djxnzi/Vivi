@@ -1,4 +1,4 @@
-# <img src="vivi_icon.png" width="40" alt="Vivi Icon"> Vivi (.vivi)
+# <img src="misc/vivi_icon.png" width="40" alt="Vivi Icon"> Vivi (.vivi)
 
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/djxnzi/vivi?style=for-the-badge) ![GitHub License](https://img.shields.io/github/license/djxnzi/vivi?style=for-the-badge)
 
