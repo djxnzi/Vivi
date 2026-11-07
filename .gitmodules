@@ -1,0 +1,9 @@
+[submodule "config/vscode"]
+	path = config/vscode
+	url = https://github.com/jkylander/vscode-vivi
+[submodule "config/tree-sitter"]
+	path = config/tree-sitter
+	url = https://github.com/jkylander/tree-sitter-vivi
+[submodule "config/nix"]
+	path = config/nix
+	url = https://github.com/XansiOnGit/vivi-flake
