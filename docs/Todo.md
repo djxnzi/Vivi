@@ -26,7 +26,7 @@ Simple `#pragma message` style directive.
 `#import func1, func2 from "lib.vivi"`
 
 ### FFI/C
-`#ffi` and `#c` binding. Gonna take forever to build this right. Ideally `#proctime` will be able to autobind.
+`#ffi` and `#c` binding. Gonna take forever to build this right.
 
 ```
 // add.c
