@@ -1,0 +1,406 @@
+// Xansidev - Github/XansiOnGit
+// This was genuinely fun to make.
+
+// tetris.vivi - basic single-file Tetris (scaled, centered, resource-safe)
+// Controls: a/d move, s soft drop, w rotate, space hard drop, q quit
+// 
+// Run under limits there is apparently a massive amount of ram being eaten and unfree'd so just use this.
+// bash -c 'ulimit -v 1000000; ulimit -t 1500; vivi tetris.vivi; stty sane'
+
+#import "Math"
+#import "Io"
+#import "Sys"
+#import "Strings"
+
+W := 10
+H := 20
+
+// safety caps
+MAX_SCALE := 3
+MAX_SECONDS := 1200
+MAX_KEYS := 32
+
+// 4x4 grids, '#' (35) = filled. Rotation is computed, not stored.
+SHAPES := [
+    "....####........",   // I
+    ".##..##.........",   // O
+    ".#..###.........",   // T
+    ".##.##..........",   // S
+    "##...##.........",   // Z
+    "#...###.........",   // J
+    "..#.###........."    // L
+]
+
+// colors per piece type (r, g, b)
+CR := [0, 240, 170, 0, 240, 0, 240]
+CG := [220, 220, 0, 220, 0, 0, 160]
+CB := [220, 0, 220, 0, 0, 240, 0]
+
+esc := string(rune(27))
+
+board := []
+cell_art := []
+px := 3
+py := 0
+pr := 0
+pt := 0
+nt := 0
+score := 0
+lines := 0
+over := false
+dirty := true
+
+// layout, filled in by setup()
+CW := 2
+CH := 1
+LEFT := 1
+TOP := 1
+EMPTY_CELL := string(rune(32))
+
+rep := (s, n) {
+    out := ""
+    i := 0
+    while i < n {
+        out = out ~ s
+        i = i + 1
+    }
+    return out
+}
+
+pad := (s, n) {
+    out := s
+    i := 0
+    while _len(out) < n {
+        out = out ~ " "
+        i = i + 1
+        if i > 200 { return out }
+    }
+    return out
+}
+
+at := (row, col) {
+    return esc ~ "[" ~ string(row) ~ ";" ~ string(col) ~ "H"
+}
+
+setup := () {
+    rows := 24
+    cols := 80
+    r := capture("stty size < /dev/tty")
+    if r[0] == 0 {
+        parts := split(trim(r[1]), " ")
+        if _len(parts) == 2 {
+            rows = i32(parts[0])
+            cols = i32(parts[1])
+        }
+    }
+
+    // biggest scale that fits, capped
+    s1 := i32((rows - 6) / H)
+    s2 := i32((cols - 6) / (W * 2))
+    s := min(s1, s2)
+    if s < 1 { s = 1 }
+    if s > MAX_SCALE { s = MAX_SCALE }
+    CW = s * 2
+    CH = s
+
+    boardw := W * CW + 2
+    totalh := H * CH + 4
+    LEFT = max(1, i32((cols - boardw) / 2) + 1)
+    TOP = max(1, i32((rows - totalh) / 2) + 1)
+
+    // cache the cell strings once so drawing never rebuilds them
+    EMPTY_CELL = rgb(55, 55, 55, "·") ~ rep(" ", CW - 1)
+    cell_art = []
+    i := 0
+    while i < 7 {
+        cell_art.push(rgb(CR[i], CG[i], CB[i], rep("█", CW)))
+        i = i + 1
+    }
+}
+
+init_board := () {
+    board = []
+    i := 0
+    while i < W * H {
+        board.push(0)
+        i = i + 1
+    }
+}
+
+// Is cell (x, y) of piece t in rotation r filled?
+// Rotating 90 degrees maps (x, y) -> (y, 3 - x); apply r times to find the source cell.
+has := (t, r, x, y) {
+    sx := x
+    sy := y
+    k := 0
+    while k < r {
+        nx := sy
+        ny := 3 - sx
+        sx = nx
+        sy = ny
+        k = k + 1
+    }
+    return _get(SHAPES[t], sy * 4 + sx) == 35
+}
+
+// Can piece t / rotation r sit with its 4x4 origin at (x, y)?
+fits := (t, r, x, y) {
+    cy := 0
+    while cy < 4 {
+        cx := 0
+        while cx < 4 {
+            if has(t, r, cx, cy) {
+                bx := x + cx
+                by := y + cy
+                if bx < 0 { return false }
+                if bx >= W { return false }
+                if by >= H { return false }
+                if by >= 0 {
+                    if _get(board, by * W + bx) != 0 { return false }
+                }
+            }
+            cx = cx + 1
+        }
+        cy = cy + 1
+    }
+    return true
+}
+
+spawn := () {
+    pt = nt
+    nt = abs(rand()) % 7
+    px = 3
+    py = 0
+    pr = 0
+    if !fits(pt, pr, px, py) {
+        over = true
+    }
+}
+
+lock_piece := () {
+    cy := 0
+    while cy < 4 {
+        cx := 0
+        while cx < 4 {
+            if has(pt, pr, cx, cy) {
+                bx := px + cx
+                by := py + cy
+                if by >= 0 {
+                    board[by * W + bx] = pt + 1
+                }
+            }
+            cx = cx + 1
+        }
+        cy = cy + 1
+    }
+}
+
+clear_lines := () {
+    cleared := 0
+    y := H - 1
+    guard := 0
+    while y >= 0 {
+        guard = guard + 1
+        if guard > 100 { y = -1 }   // hard stop, can't loop forever
+        full := true
+        x := 0
+        while x < W {
+            if _get(board, y * W + x) == 0 { full = false }
+            x = x + 1
+        }
+        if full {
+            cleared = cleared + 1
+            yy := y
+            while yy > 0 {
+                x = 0
+                while x < W {
+                    board[yy * W + x] = _get(board, (yy - 1) * W + x)
+                    x = x + 1
+                }
+                yy = yy - 1
+            }
+            x = 0
+            while x < W {
+                board[x] = 0
+                x = x + 1
+            }
+            // same y again: a new row just dropped into it
+        } else {
+            y = y - 1
+        }
+    }
+    if cleared == 1 { score = score + 100 }
+    if cleared == 2 { score = score + 300 }
+    if cleared == 3 { score = score + 500 }
+    if cleared >= 4 { score = score + 800 }
+    lines = lines + cleared
+}
+
+// Lock, clear, spawn the next piece
+land := () {
+    lock_piece()
+    clear_lines()
+    spawn()
+}
+
+// Is board/piece cell (x, y) occupied by the falling piece?
+piece_at := (x, y) {
+    cx := x - px
+    cy := y - py
+    if cx < 0 { return false }
+    if cx > 3 { return false }
+    if cy < 0 { return false }
+    if cy > 3 { return false }
+    return has(pt, pr, cx, cy)
+}
+
+// borders + footer: drawn once
+draw_static := () {
+    print(at(TOP + 1, LEFT) ~ "┌" ~ rep("─", W * CW) ~ "┐")
+    print(at(TOP + 2 + H * CH, LEFT) ~ "└" ~ rep("─", W * CW) ~ "┘")
+    print(at(TOP + 3 + H * CH, LEFT) ~ "a/d move  w rotate  s drop  space slam  q quit")
+}
+
+// board + header: only when something changed, one small print per row
+draw := () {
+    header := "TETRIS  score " ~ string(score) ~ "  lines " ~ string(lines)
+    print(at(TOP, LEFT) ~ pad(header, W * CW + 2))
+
+    y := 0
+    while y < H {
+        line := "│"
+        x := 0
+        while x < W {
+            c := _get(board, y * W + x)
+            if piece_at(x, y) { c = pt + 1 }
+            if c == 0 {
+                line = line ~ EMPTY_CELL
+            } else {
+                line = line ~ cell_art[c - 1]
+            }
+            x = x + 1
+        }
+        line = line ~ "│"
+        k := 0
+        while k < CH {
+            print(at(TOP + 2 + y * CH + k, LEFT) ~ line)
+            k = k + 1
+        }
+        y = y + 1
+    }
+}
+
+try_move := (dx, dy) {
+    if fits(pt, pr, px + dx, py + dy) {
+        px = px + dx
+        py = py + dy
+        return true
+    }
+    return false
+}
+
+try_rotate := () {
+    if pt == 1 { return false }   // O piece doesn't rotate
+    nr := (pr + 1) % 4
+    if fits(pt, nr, px, py) {
+        pr = nr
+        return true
+    }
+    // simple wall kicks
+    if fits(pt, nr, px - 1, py) {
+        px = px - 1
+        pr = nr
+        return true
+    }
+    if fits(pt, nr, px + 1, py) {
+        px = px + 1
+        pr = nr
+        return true
+    }
+    return false
+}
+
+// bounded: can fall at most H rows
+hard_drop := () {
+    i := 0
+    moving := true
+    while moving {
+        if try_move(0, 1) {
+            i = i + 1
+            if i > H { moving = false }
+        } else {
+            moving = false
+        }
+    }
+    land()
+}
+
+handle_key := (k) {
+    if k == 97  { try_move(-1, 0) }    // a
+    if k == 100 { try_move(1, 0) }     // d
+    if k == 119 { try_rotate() }       // w
+    if k == 115 {                      // s
+        if !try_move(0, 1) { land() }
+    }
+    if k == 32  { hard_drop() }        // space
+    if k == 113 { over = true }        // q
+}
+
+main := () {
+    seed(timestamp())
+    setup()
+    init_board()
+    nt = abs(rand()) % 7
+    spawn()
+
+    // non-blocking raw input; keep signals on so Ctrl-C still works
+    _run("stty -icanon -echo min 0 time 0")
+    cursor_hide()
+    print(esc ~ "[2J")
+    draw_static()
+
+    last := _clock()
+    start := last
+    while !over {
+        // read pending keys, at most MAX_KEYS per frame
+        going := true
+        n := 0
+        while going {
+            s := _read(0, 1)
+            if _len(s) == 0 {
+                going = false
+            } else {
+                handle_key(_get(s, 0))
+                dirty = true
+                n = n + 1
+                if n >= MAX_KEYS { going = false }
+            }
+        }
+
+        // gravity gets faster every 10 lines, floor at 0.08s
+        delay := max(0.08, 0.5 - 0.04 * (lines / 10))
+        now_t := _clock()
+        if now_t - last >= delay {
+            last = now_t
+            if !try_move(0, 1) { land() }
+            dirty = true
+        }
+
+        // auto-quit safety net
+        if now_t - start > MAX_SECONDS { over = true }
+
+        if dirty {
+            draw()
+            dirty = false
+        }
+        _run("sleep 0.05")
+    }
+
+    draw()
+    _run("stty sane")
+    cursor_show()
+    print(at(TOP + 5 + H * CH, 1))
+    println("GAME OVER - score " ~ string(score) ~ ", lines " ~ string(lines))
+}
+
+main()
