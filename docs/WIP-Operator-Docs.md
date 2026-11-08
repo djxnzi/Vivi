@@ -2,8 +2,6 @@
 
 Below is a table with most operators available in Vivi. For example usage, `(foo)` represents something that is optional, `<bar>` represents something that is required.
 
-(this line, line 5, is only here to continue testing Git's functionality)
-
 ## Variable Declaration
 
 | Operator | Function                       | Example usage              | Additional notes                                                                                                       |
