@@ -39,22 +39,30 @@ Below is a table with most operators available in Vivi. For example usage, `(foo
 
 ## Comparison
 
-| Operator | Function            | Example usage       | Additional notes                                         |
-|----------|---------------------|---------------------|----------------------------------------------------------|
-| `!=`     | Placeholder         | Placeholder         | Placeholder                                              |
-| `==`     | Placeholder         | Placeholder         | Placeholder                                              |
-| `<`      | Placeholder         | Placeholder         | Placeholder                                              |
-| `<=`     | Placeholder         | Placeholder         | Placeholder                                              |
-| `>`      | Placeholder         | Placeholder         | Placeholder                                              |
-| `>=`     | Placeholder         | Placeholder         | Placeholder                                              |
-| `? :`    | Ternary Conditional | `<foo>?<bar>:<bat>` | Returns `<bar>` if `<foo>` is true and `<bat>` if false. |
+| Operator | Function            | Example usage           | Additional notes                                         
+| |
+|----------|---------------------|-------------------------|----------------------------------------------------------|
+| `!=`     | Placeholder         | Placeholder             | Placeholder                                              
+| |
+| `==`     | Placeholder         | Placeholder             | Placeholder                                              
+| |
+| `<`      | Placeholder         | Placeholder             | Placeholder                                              
+| |
+| `<=`     | Placeholder         | Placeholder             | Placeholder                                              
+| |
+| `>`      | Placeholder         | Placeholder             | Placeholder                                              
+| |
+| `>=`     | Placeholder         | Placeholder             | Placeholder                                              
+| |
+| `? :`    | Ternary Conditional | `<foo> ? <bar> : <bat>` | Returns `<bar>` if `<foo>` 
+| is true and `<bat>` if false. |
 
 
 ## Math
 
 | Operator | Function    | Example usage | Additional notes |
 |----------|-------------|---------------|------------------|
-| `+`      | Placeholder | Placeholder   | Placeholder      |
+| `+`      | Addition    | <foo>   | Placeholder      |
 | `-`      | Placeholder | Placeholder   | Placeholder      |
 | `*`      | Placeholder | Placeholder   | Placeholder      |
 | `/`      | Placeholder | Placeholder   | Placeholder      |
