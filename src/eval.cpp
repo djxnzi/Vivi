@@ -335,7 +335,7 @@ static Value eval_expr(AstNode *node) {
                 if ((l.type == ValueType::Str && !lok) || (r.type == ValueType::Str && !rok)) {
                     print_err("coerce");
                 } else {
-                    print_err("only_num", (int)op);
+                    print_err("math_gap", (int)op);
                 }
                 return make_null();
             }
