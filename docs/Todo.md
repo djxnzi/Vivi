@@ -209,7 +209,7 @@ f32 _ := 1.0               // This is never set because a null name can't be set
 `0x10`, `0xA` etc. Currently no support.
 
 ### stdlib additions
-json/net/async
+net/async, ~~json~~ de/serialization into arrays by xansi, still need struct serialization later
 
 ### ext proctime linker & ext poller
 An `ext` is a magic external asset linker type that binds to a struct. The back end can already build metadata for it, but some extra stuff needs to happen with it to make it useful. `ext` needs to always be set at proctime with `::`.
