@@ -67,6 +67,10 @@ static bool values_equal(Value a, Value b) {
         return is_empty_or_null(a) && is_empty_or_null(b);
     }
 
+    // Fix 0/1 == false/true bool comparisons
+    if (a.type == ValueType::Bool && is_numeric(b)) return as_double(b) == (a.as.b ? 1.0 : 0.0);
+    if (b.type == ValueType::Bool && is_numeric(a)) return as_double(a) == (b.as.b ? 1.0 : 0.0);
+
     if (a.type != b.type) {
         if (is_numeric(a) && is_numeric(b)) return as_double(a) == as_double(b);
         return false;
@@ -190,8 +194,15 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
             *out = coerced;
             return true;
         }
+
+        if (expected_vt == ValueType::Bool && is_numeric(v)) {
+            *out = make_bool(is_truthy(v));
+            return true;
+        }
+
         if (v.type != expected_vt) return false;
         *out = v;
+        
         return true;
     }
 
@@ -226,7 +237,13 @@ static bool type_is_void(AstNode *rt) {
     return false;
 }
 
-static bool return_type_matches(AstNode *return_type, Value result) {
+static void set_returned_item(Value *out, Value original, int i, Value item) {
+    if (out->as.obj == original.as.obj) *out = value_copy(original);
+    ((ObjArray*)out->as.obj)->items[i] = item;
+}
+
+static bool return_type_matches(AstNode *return_type, Value result, Value *out, bool loose) {
+    *out = result;
     if (is_ident(return_type, "void")) return result.type == ValueType::Null;
 
     if (return_type->type == ARRAY_TYPE) {
@@ -237,23 +254,27 @@ static bool return_type_matches(AstNode *return_type, Value result) {
 
         ObjArray *array = (ObjArray*)result.as.obj;
         for (int i = 0; i < array->count; i++) {
-            if (!return_type_matches(element_type, array->items[i])) {
-                return false;
-            }
+            Value item;
+            if (!return_type_matches(element_type, array->items[i], &item, loose)) return false;
+            if (item.type != array->items[i].type) set_returned_item(out, result, i, item);
         }
         return true;
     }
 
     if (return_type->type == BINARY && return_type->op == TOK_PIPE) {
-        return return_type_matches(return_type->left, result)
-            || return_type_matches(return_type->right, result);
+        if (return_type_matches(return_type->left, result, out, false)) return true;
+        if (return_type_matches(return_type->right, result, out, false)) return true;
+        if (!loose) return false;
+        return return_type_matches(return_type->left, result, out, true) || return_type_matches(return_type->right, result, out, true);
     }
     if (return_type->type == RETURN_TYPE_LIST) {
         if (result.type != ValueType::Array) return false;
         ObjArray *a = (ObjArray*)result.as.obj;
         if (a->count != return_type->count) return false;
         for (int i = 0; i < a->count; i++) {
-            if (!return_type_matches(return_type->types[i], a->items[i])) return false;
+            Value item;
+            if (!return_type_matches(return_type->types[i], a->items[i], &item, loose)) return false;
+            if (item.type != a->items[i].type) set_returned_item(out, result, i, item);
         }
         return true;
     }
@@ -264,14 +285,18 @@ static bool return_type_matches(AstNode *return_type, Value result) {
 
     ValueType expected_vt;
     if (ident_is_type_name(return_type->name, return_type->len, &expected_vt)) {
+        if (loose && expected_vt == ValueType::Bool && is_numeric(result)) {
+            *out = make_bool(is_truthy(result));
+            return true;
+        }
         return result.type == expected_vt;
     }
+
     AstNode *struct_decl = find_struct_decl(return_type->name, return_type->len);
     if (struct_decl) {
         if (result.type != ValueType::Struct) return false;
         ObjStruct *s = (ObjStruct*)result.as.obj;
-        return s->type_name && s->type_name_len == return_type->len &&
-            strncmp(s->type_name, return_type->name, return_type->len) == 0;
+        return s->type_name && s->type_name_len == return_type->len && strncmp(s->type_name, return_type->name, return_type->len) == 0;
     }
     return true;
 }

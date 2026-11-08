@@ -374,6 +374,7 @@ static AstNode* parse_for_cstyle(Parser *p, int line, int col, bool has_parens) 
     expect(p, TOK_SEMICOLON, "expected ';' after for-loop condition");
 
     AstNode *incr = parse_condition(p);
+    match(p, TOK_SEMICOLON);
 
     if (has_parens) {
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
@@ -434,7 +435,7 @@ static AstNode* parse_return_stmt(Parser *p, int line, int col) {
     expect(p, TOK_RETURN, "expected 'return'");
 
     AstNode *value = nullptr;
-    if (!(p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF))) {
+    if (!(p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF) || check(p, TOK_SEMICOLON))) {
         value = parse_expression(p);
         if (is_assign_op(p->current.type)) {
             TokenType op = p->current.type;
@@ -454,6 +455,7 @@ static AstNode* parse_return_stmt(Parser *p, int line, int col) {
         }
     }
 
+    match(p, TOK_SEMICOLON);
     return make_return_stmt(value, line, col);
 }
 
@@ -461,20 +463,23 @@ static AstNode* parse_defer_stmt(Parser *p, int line, int col) {
     expect(p, TOK_DEFER, "expected 'defer'");
 
     AstNode *value = nullptr;
-    if (!(p->current.preceded_nl || check(p, TOK_EOF))) {
+    if (!(p->current.preceded_nl || check(p, TOK_EOF) || check(p, TOK_SEMICOLON))) {
         value = parse_expression(p);
     }
 
+    match(p, TOK_SEMICOLON);
     return make_defer_stmt(value, line, col);
 }
 
 static AstNode* parse_break_stmt(Parser *p, int line, int col) {
     expect(p, TOK_BREAK, "expected 'break'");
+    match(p, TOK_SEMICOLON);
     return make_break_stmt(line, col);
 }
 
 static AstNode* parse_continue_stmt(Parser *p, int line, int col) {
     expect(p, TOK_CONTINUE, "expected 'continue'");
+    match(p, TOK_SEMICOLON);
     return make_continue_stmt(line, col);
 }
 

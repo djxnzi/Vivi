@@ -672,7 +672,7 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
                 print_err("no_return_value");
                 return make_null();
             }
-        } else if (!return_type_matches(shape.return_type, result)) {
+        } else if (!return_type_matches(shape.return_type, result, &result)) {
             if (shape.return_type->type == IDENT) {
                 const char *tname = shape.return_type->name;
                 int tlen = shape.return_type->len;
