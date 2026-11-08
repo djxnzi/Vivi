@@ -26,3 +26,21 @@ static Value make_str(const char *start, int len);
 static Value make_rune(const char *start, int len);
 static Value make_str_from_value(Value v);
 static Value make_ext_asset(AstNode *path_expr);
+
+static const struct { const char *name; int len; ValueType vt; } type_names[] = {
+    {"string", 6, ValueType::Str},
+    {"rune", 4, ValueType::Rune},
+    {"bool", 4, ValueType::Bool},
+    {"i8", 2, ValueType::Int},
+    {"i16", 3, ValueType::Int},
+    {"i32", 3, ValueType::Int},
+    {"i64", 3, ValueType::Int},
+    {"u8", 2, ValueType::Int},
+    {"u16", 3, ValueType::Int},
+    {"u32", 3, ValueType::Int},
+    {"u64", 3, ValueType::Int},
+    {"f32", 3, ValueType::Float},
+    {"f64", 3, ValueType::Float},
+    {"array", 5, ValueType::Array},
+    {"struct", 6, ValueType::Struct},
+};

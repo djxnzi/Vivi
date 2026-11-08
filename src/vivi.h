@@ -13,6 +13,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
+#include <cstdint>
 
 namespace fs = std::filesystem;
 

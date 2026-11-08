@@ -28,13 +28,6 @@ static bool is_ext_annotation(AstNode *type_annotation) {
 }
 
 static bool ident_is_type_name(const char *name, int len, ValueType *out_vt) {
-    static const struct { const char *name; int len; ValueType vt; } type_names[] = {
-        {"string", 6, ValueType::Str},  {"rune", 4, ValueType::Rune}, {"bool", 4, ValueType::Bool},
-        {"i8", 2, ValueType::Int},  {"i16", 3, ValueType::Int}, {"i32", 3, ValueType::Int}, {"i64", 3, ValueType::Int},
-        {"u8", 2, ValueType::Int},  {"u16", 3, ValueType::Int}, {"u32", 3, ValueType::Int}, {"u64", 3, ValueType::Int},
-        {"f32", 3, ValueType::Float}, {"f64", 3, ValueType::Float},
-        {"array", 5, ValueType::Array},  {"struct", 6, ValueType::Struct},
-    };
     for (auto &t : type_names) {
         if (len == t.len && strncmp(name, t.name, t.len) == 0) {
             *out_vt = t.vt;
@@ -42,6 +35,25 @@ static bool ident_is_type_name(const char *name, int len, ValueType *out_vt) {
         }
     }
     return false;
+}
+
+static int type_index(const char *name, int len) {
+    for (int i = 0; i < (int)(sizeof(type_names) / sizeof(type_names[0])); i++)
+        if (len == type_names[i].len && strncmp(name, type_names[i].name, len) == 0) return i;
+    return -1;
+}
+
+static Value with_type(Value v, unsigned char ty) {
+    if (!ty) return v;
+    const char *n = type_names[ty - 1].name;
+    int l = type_names[ty - 1].len;
+    if (v.type == ValueType::Int) {
+        v.as.i = truncate_int(v.as.i, n, l);
+    } else if (v.type == ValueType::Float && l == 3 && strncmp(n, "f32", 3) == 0) {
+        v.as.f = (double)(float)v.as.f;
+    }
+    v.ty = ty;
+    return v;
 }
 
 static bool is_empty_or_null(Value v) {
@@ -175,15 +187,14 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
             Value c;
             if (!coerce(v, &c)) return false;
             long raw = (c.type == ValueType::Float) ? (long)c.as.f : c.as.i;
-            *out = make_int(truncate_int(raw, tname, tlen));
+            *out = with_type(make_int(raw), type_index(tname, tlen) + 1);
             return true;
         }
         if (expected_vt == ValueType::Float) {
             Value c;
             if (!coerce(v, &c)) return false;
             double d = as_double(c);
-            if (tlen == 3 && strncmp(tname, "f32", 3) == 0) d = (double)(float)d;
-            *out = make_float(d);
+            *out = with_type(make_float(d), type_index(tname, tlen) + 1);
             return true;
         }
         if ((expected_vt == ValueType::Str || expected_vt == ValueType::Rune) &&
@@ -313,32 +324,36 @@ static Value eval_math(TokenType op, Value l, Value r) {
         }
         return make_null();
     }
+    
     bool both_int = (lc.type == ValueType::Int && rc.type == ValueType::Int);
+    unsigned char ity = lc.ty ? lc.ty : rc.ty;
+    unsigned char fty = (lc.type == ValueType::Float && lc.ty) ? lc.ty : (rc.type == ValueType::Float ? rc.ty : 0);
+
     switch (op) {
         case TOK_PLUS:
-            return both_int ? make_int(lc.as.i + rc.as.i) : make_float(as_double(lc) + as_double(rc));
+            return both_int ? with_type(make_int(lc.as.i + rc.as.i), ity) : with_type(make_float(as_double(lc) + as_double(rc)), fty);
         case TOK_MINUS:
-            return both_int ? make_int(lc.as.i - rc.as.i) : make_float(as_double(lc) - as_double(rc));
+            return both_int ? with_type(make_int(lc.as.i - rc.as.i), ity) : with_type(make_float(as_double(lc) - as_double(rc)), fty);
         case TOK_STAR:
-            return both_int ? make_int(lc.as.i * rc.as.i) : make_float(as_double(lc) * as_double(rc));
+            return both_int ? with_type(make_int(lc.as.i * rc.as.i), ity) : with_type(make_float(as_double(lc) * as_double(rc)), fty);
         case TOK_SLASH:
-            if (as_double(rc) == 0.0) return make_float(as_double(lc) / as_double(rc));
-            return both_int ? make_int(lc.as.i / rc.as.i) : make_float(as_double(lc) / as_double(rc));
+            if (as_double(rc) == 0.0) return with_type(make_float(as_double(lc) / as_double(rc)), fty);
+            return both_int ? with_type(make_int(lc.as.i / rc.as.i), ity) : with_type(make_float(as_double(lc) / as_double(rc)), fty);
         case TOK_PERCENT:
-            if (as_double(rc) == 0.0) return make_float(fmod(as_double(lc), as_double(rc)));
-            return both_int ? make_int(lc.as.i % rc.as.i) : make_float(fmod(as_double(lc), as_double(rc)));
+            if (as_double(rc) == 0.0) return with_type(make_float(fmod(as_double(lc), as_double(rc))), fty);
+            return both_int ? with_type(make_int(lc.as.i % rc.as.i), ity) : with_type(make_float(fmod(as_double(lc), as_double(rc))), fty);
         case TOK_AMP:
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
-            return make_int(lc.as.i & rc.as.i);
+            return with_type(make_int(lc.as.i & rc.as.i), ity);
         case TOK_CARET:
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
-            return make_int(lc.as.i ^ rc.as.i);
+            return with_type(make_int(lc.as.i ^ rc.as.i), ity);
         case TOK_SHL:
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
-            return make_int(lc.as.i << rc.as.i);
+            return with_type(make_int(lc.as.i << rc.as.i), ity);
         case TOK_SHR:
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
-            return make_int(lc.as.i >> rc.as.i);
+            return with_type(make_int(lc.as.i >> rc.as.i), ity);
 
         default:
             print_err("unhandled_math_op", (int)op);
@@ -395,7 +410,13 @@ void value_print(Value v, FILE *out) {
     switch (v.type) {
         case ValueType::Null:  fprintf(out, "null"); break;
         case ValueType::Bool:  fprintf(out, v.as.b ? "true" : "false"); break;
-        case ValueType::Int:   fprintf(out, "%ld", v.as.i); break;
+        case ValueType::Int:
+            if (v.ty == type_index("u64", 3) + 1) {
+                fprintf(out, "%lu", (unsigned long)v.as.i);
+            } else {
+                fprintf(out, "%ld", v.as.i);
+            }
+            break;
         case ValueType::Float: fprintf(out, "%g", v.as.f); break;
         case ValueType::Str: {
             ObjStr *s = (ObjStr*)v.as.obj;
@@ -450,10 +471,10 @@ static Value make_bool(bool b) {
     Value v; v.type = ValueType::Bool; v.as.b = b; return v;
 }
 static Value make_int(long i) {
-    Value v; v.type = ValueType::Int; v.as.i = i; return v;
+    Value v; v.type = ValueType::Int; v.as.i = i; v.ty = 0; return v;
 }
 static Value make_float(double f) {
-    Value v; v.type = ValueType::Float; v.as.f = f; return v;
+    Value v; v.type = ValueType::Float; v.as.f = f; v.ty = 0; return v;
 }
 static Value make_str(const char *start, int len) {
     ObjStr *s = (ObjStr*)arena_alloc(sizeof(ObjStr));
@@ -488,7 +509,9 @@ static Value make_str_from_value(Value v) {
         case ValueType::Null:  return make_str("null", 4);
         case ValueType::Bool:  return v.as.b ? make_str("true", 4) : make_str("false", 5);
         case ValueType::Int: {
-            int n = snprintf(buf, sizeof(buf), "%ld", v.as.i);
+            int n = (v.ty == type_index("u64", 3) + 1)
+                ? snprintf(buf, sizeof(buf), "%lu", (unsigned long)v.as.i)
+                : snprintf(buf, sizeof(buf), "%ld", v.as.i);
             char *heap = (char*)arena_alloc(n);
             memcpy(heap, buf, n);
             return make_str(heap, n);

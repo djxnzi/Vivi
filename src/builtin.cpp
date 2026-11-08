@@ -1,7 +1,82 @@
-#include <sys/mman.h>
-#include <cstdint>
+static void register_builtins(Env *env) {
+    for (const Builtin &b : builtin_table) {
+        ObjFn *fn = (ObjFn*)arena_alloc(sizeof(ObjFn));
+        fn->obj.type = ValueType::Fn;
+        fn->obj.refcount = 0;
+        fn->decl = nullptr;
+        fn->closure = nullptr;
+        fn->file = nullptr;
+        fn->source = nullptr;
+        fn->is_native = true;
+        fn->native_name = b.name;
+        fn->native_name_len = (int)strlen(b.name);
+        fn->native_arity = b.arity;
+        fn->native = b.fn;
+        Value v; v.type = ValueType::Fn; v.as.obj = (Obj*)fn;
+        env_define(env, b.name, fn->native_name_len, v, true);
+    }
+}
 
-//Added these two imports as they are required for Malloc and free functionality.
+static Value eval_typecast(const char *tname, int tlen, Value v) {
+    auto is_ty = [&](const char *s) { int l = (int)strlen(s); return tlen == l && strncmp(tname, s, l) == 0; };
+
+    if (is_ty("bool")) return make_bool(is_truthy(v));
+    if (is_ty("string")) return make_str_from_value(v);
+
+    if (is_ty("rune")) {
+        if (v.type == ValueType::Rune) return v;
+        if (v.type == ValueType::Str && ((ObjStr*)v.as.obj)->len == 1)
+            return make_rune(((ObjStr*)v.as.obj)->chars, 1);
+        if (v.type == ValueType::Int && v.as.i >= 0 && v.as.i <= 255) {
+            char *c = (char*)arena_alloc(1);
+            c[0] = (char)v.as.i;
+            return make_rune(c, 1);
+        }
+        print_err("cast_mismatch", tlen, tname);
+        return make_null();
+    }
+
+    bool to_int   = is_ty("i8") || is_ty("i16") || is_ty("i32") || is_ty("i64") ||
+                    is_ty("u8") || is_ty("u16") || is_ty("u32") || is_ty("u64");
+    bool to_float = is_ty("f32") || is_ty("f64");
+
+    if (to_int || to_float) {
+        if (v.type == ValueType::Rune) {
+            long code = (long)(unsigned char)((ObjStr*)v.as.obj)->chars[0];
+            if (to_int) return with_type(make_int(code), type_index(tname, tlen) + 1);
+            return with_type(make_float((double)code), type_index(tname, tlen) + 1);
+        }
+        char *tmp = nullptr;
+        if (v.type == ValueType::Str) {
+            ObjStr *s = (ObjStr*)v.as.obj;
+            tmp = (char*)arena_alloc(s->len + 1);
+            memcpy(tmp, s->chars, (size_t)s->len);
+            tmp[s->len] = '\0';
+        }
+        if (to_int) {
+            bool have_raw = true;
+            long raw = 0;
+            if (v.type == ValueType::Int)        raw = v.as.i;
+            else if (v.type == ValueType::Float) raw = (long)v.as.f;
+            else if (v.type == ValueType::Bool)  raw = v.as.b ? 1 : 0;
+            else if (tmp)                        raw = strtol(tmp, nullptr, 10);
+            else have_raw = false;
+            if (have_raw) return with_type(make_int(raw), type_index(tname, tlen) + 1);
+        } else {
+            bool have_raw = true;
+            double raw = 0;
+            if (v.type == ValueType::Float)      raw = v.as.f;
+            else if (v.type == ValueType::Int)   raw = (double)v.as.i;
+            else if (v.type == ValueType::Bool)  raw = v.as.b ? 1.0 : 0.0;
+            else if (tmp)                        raw = strtod(tmp, nullptr);
+            else have_raw = false;
+            if (have_raw) return with_type(make_float(raw), type_index(tname, tlen) + 1);
+        }
+    }
+
+    print_err("cast_mismatch", tlen, tname);
+    return make_null();
+}
 
 static Value builtin_error(ObjFn *fn) {
     print_err("builtin_contract", fn->native_name_len, fn->native_name);
@@ -278,13 +353,31 @@ static Value builtin_munmap(ObjFn *fn, Value *args) {
 
 static Value builtin_peek(ObjFn *fn, Value *args) {
     if (args[0].type != ValueType::Int || args[0].as.i == 0) return builtin_error(fn);
-    return make_int(*(unsigned char*)(uintptr_t)args[0].as.i);
+    void *p = (void*)(uintptr_t)args[0].as.i;
+    unsigned char ty = args[0].ty;
+    if (!ty) return make_int(*(unsigned char*)p);
+    ValueType vt = type_names[ty - 1].vt;
+    if (vt != ValueType::Int && vt != ValueType::Float) return builtin_error(fn);
+    int bytes = atoi(type_names[ty - 1].name + 1) / 8;
+    if (vt == ValueType::Float) {
+        if (bytes == 4) { float f; memcpy(&f, p, 4); return with_type(make_float(f), ty); }
+        double d; memcpy(&d, p, 8); return with_type(make_float(d), ty);
+    }
+    long raw = 0; memcpy(&raw, p, bytes);
+    return with_type(make_int(raw), ty);
 }
 
 static Value builtin_poke(ObjFn *fn, Value *args) {
-    if (args[0].type != ValueType::Int || args[1].type != ValueType::Int
-        || args[0].as.i == 0) return builtin_error(fn);
-    *(unsigned char*)(uintptr_t)args[0].as.i = (unsigned char)args[1].as.i;
+    if (args[0].type != ValueType::Int || args[0].as.i == 0 || !is_numeric(args[1])) return builtin_error(fn);
+    void *p = (void*)(uintptr_t)args[0].as.i;
+    Value v = args[1];
+    int bytes = v.ty ? atoi(type_names[v.ty - 1].name + 1) / 8 : (v.type == ValueType::Float ? 8 : 1);
+    if (v.type == ValueType::Float) {
+        if (bytes == 4) { float f = (float)v.as.f; memcpy(p, &f, 4); }
+        else memcpy(p, &v.as.f, 8);
+    } else {
+        memcpy(p, &v.as.i, bytes);
+    }
     return make_null();
 }
 
@@ -294,116 +387,5 @@ static Value builtin_memcpy(ObjFn *fn, Value *args) {
         || args[2].as.i < 0) return builtin_error(fn);
     memmove((void*)(uintptr_t)args[0].as.i, (void*)(uintptr_t)args[1].as.i,
             (size_t)args[2].as.i);
-    return make_null();
-}
-
-struct Builtin { const char *name; int arity; NativeFn fn; };
-
-static const Builtin builtin_table[] = {
-    { "_mmap",   1, builtin_mmap },
-    { "_munmap", 2, builtin_munmap },
-    { "_peek",   1, builtin_peek },
-    { "_poke",   2, builtin_poke },
-    { "_memcpy", 3, builtin_memcpy },
-    { "_write",     2, builtin_write },
-    { "_exit",      1, builtin_exit },
-    { "_traceback", 0, builtin_traceback },
-    { "_clock",     0, builtin_clock },
-    { "_rand",      0, builtin_rand },
-    { "_len",       1, builtin_len },
-    { "_get",       2, builtin_get },
-    { "_set",       3, builtin_set },
-    { "_trunc",     2, builtin_trunc },
-    { "_cast",      2, builtin_cast },
-    { "_read",      2, builtin_read },
-    { "_open",      2, builtin_open },
-    { "_close",     1, builtin_close },
-    { "_run",       1, builtin_run },
-    { "_seed",      1, builtin_seed },
-    { "_pipe",      0, builtin_pipe },
-    { "_spawn",     4, builtin_spawn },
-    { "_wait",      1, builtin_wait },
-};
-
-static void register_builtins(Env *env) {
-    for (const Builtin &b : builtin_table) {
-        ObjFn *fn = (ObjFn*)arena_alloc(sizeof(ObjFn));
-        fn->obj.type = ValueType::Fn;
-        fn->obj.refcount = 0;
-        fn->decl = nullptr;
-        fn->closure = nullptr;
-        fn->file = nullptr;
-        fn->source = nullptr;
-        fn->is_native = true;
-        fn->native_name = b.name;
-        fn->native_name_len = (int)strlen(b.name);
-        fn->native_arity = b.arity;
-        fn->native = b.fn;
-        Value v; v.type = ValueType::Fn; v.as.obj = (Obj*)fn;
-        env_define(env, b.name, fn->native_name_len, v, true);
-    }
-}
-
-static Value eval_typecast(const char *tname, int tlen, Value v) {
-    auto is_ty = [&](const char *s) { int l = (int)strlen(s); return tlen == l && strncmp(tname, s, l) == 0; };
-
-    if (is_ty("bool")) return make_bool(is_truthy(v));
-    if (is_ty("string")) return make_str_from_value(v);
-
-    if (is_ty("rune")) {
-        if (v.type == ValueType::Rune) return v;
-        if (v.type == ValueType::Str && ((ObjStr*)v.as.obj)->len == 1)
-            return make_rune(((ObjStr*)v.as.obj)->chars, 1);
-        if (v.type == ValueType::Int && v.as.i >= 0 && v.as.i <= 255) {
-            char *c = (char*)arena_alloc(1);
-            c[0] = (char)v.as.i;
-            return make_rune(c, 1);
-        }
-        print_err("cast_mismatch", tlen, tname);
-        return make_null();
-    }
-
-    bool to_int   = is_ty("i8") || is_ty("i16") || is_ty("i32") || is_ty("i64") ||
-                    is_ty("u8") || is_ty("u16") || is_ty("u32") || is_ty("u64");
-    bool to_float = is_ty("f32") || is_ty("f64");
-
-    if (to_int || to_float) {
-        if (v.type == ValueType::Rune) {
-            long code = (long)(unsigned char)((ObjStr*)v.as.obj)->chars[0];
-            if (to_int) return make_int(truncate_int(code, tname, tlen));
-            return make_float((double)code);
-        }
-        char *tmp = nullptr;
-        if (v.type == ValueType::Str) {
-            ObjStr *s = (ObjStr*)v.as.obj;
-            tmp = (char*)arena_alloc(s->len + 1);
-            memcpy(tmp, s->chars, (size_t)s->len);
-            tmp[s->len] = '\0';
-        }
-        if (to_int) {
-            bool have_raw = true;
-            long raw = 0;
-            if (v.type == ValueType::Int)        raw = v.as.i;
-            else if (v.type == ValueType::Float) raw = (long)v.as.f;
-            else if (v.type == ValueType::Bool)  raw = v.as.b ? 1 : 0;
-            else if (tmp)                        raw = strtol(tmp, nullptr, 10);
-            else have_raw = false;
-            if (have_raw) return make_int(truncate_int(raw, tname, tlen));
-        } else {
-            bool have_raw = true;
-            double raw = 0;
-            if (v.type == ValueType::Float)      raw = v.as.f;
-            else if (v.type == ValueType::Int)   raw = (double)v.as.i;
-            else if (v.type == ValueType::Bool)  raw = v.as.b ? 1.0 : 0.0;
-            else if (tmp)                        raw = strtod(tmp, nullptr);
-            else have_raw = false;
-            if (have_raw) {
-                if (is_ty("f32")) raw = (double)(float)raw;
-                return make_float(raw);
-            }
-        }
-    }
-
-    print_err("cast_mismatch", tlen, tname);
     return make_null();
 }

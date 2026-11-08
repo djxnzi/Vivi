@@ -148,6 +148,7 @@ struct Value {
         double f;
         Obj *obj;
     } as;
+    unsigned char ty;
 };
 
 struct EnvEntry {

@@ -114,7 +114,19 @@ static Value eval_expr(AstNode *node) {
                     Value *arg_values = nullptr;
                     if (node->arg_count > 0) {
                         arg_values = (Value*)arena_alloc(sizeof(Value) * node->arg_count);
-                        for (int i = 0; i < node->arg_count; i++) arg_values[i] = eval_expr(node->args[i]);
+                        
+                        ObjFn *bfn = (ObjFn*)maybe_builtin.as.obj;
+                        for (int i = 0; i < node->arg_count; i++) {
+                            arg_values[i] = eval_expr(node->args[i]);
+                            if (bfn->native == builtin_peek && node->args[i]->type == IDENT) {
+                                EnvEntry *e = env_find(global_env, node->args[i]->name, node->args[i]->len);
+                                AstNode *ann = e ? e->type_annotation : nullptr;
+                                if (ann && ann->type == UNARY && ann->op == TOK_STAR && ann->operand) {
+                                    int row = type_index(ann->operand->name, ann->operand->len);
+                                    if (row >= 0) arg_values[i].ty = (unsigned char)(row + 1);
+                                }
+                            }
+                        }
                     }
                     return call_function((ObjFn*)maybe_builtin.as.obj, arg_values, node->arg_count, nullptr, node->line, node->col);
                 }
@@ -236,12 +248,12 @@ static Value eval_expr(AstNode *node) {
             Value v = eval_expr(node->operand);
             switch (node->op) {
                 case TOK_MINUS:
-                    if (v.type == ValueType::Int)   return make_int(-v.as.i);
-                    if (v.type == ValueType::Float) return make_float(-v.as.f);
+                    if (v.type == ValueType::Int)   return with_type(make_int(-v.as.i), v.ty);
+                    if (v.type == ValueType::Float) return with_type(make_float(-v.as.f), v.ty);
                     print_err("unary");
                     return make_null();
                 case TOK_TILDE:
-                    if (v.type == ValueType::Int) return make_int(~v.as.i);
+                    if (v.type == ValueType::Int) return with_type(make_int(~v.as.i), v.ty);
                     print_err("bitwise_int_only");
                     return make_null();
                 case TOK_NOT:
@@ -268,7 +280,7 @@ static Value eval_expr(AstNode *node) {
                 Value l = eval_expr(node->left);
                 if (l.type == ValueType::Int) {
                     Value r = eval_expr(node->right);
-                    if (r.type == ValueType::Int) return make_int(l.as.i | r.as.i);
+                    if (r.type == ValueType::Int) return with_type(make_int(l.as.i | r.as.i), l.ty ? l.ty : r.ty);
                     return l;
                 }
                 if (l.type != ValueType::Null) return l;
@@ -303,6 +315,12 @@ static Value eval_expr(AstNode *node) {
                         }
                     } else {
                         matches = (v.type == vt);
+                        if (matches && (vt == ValueType::Int || vt == ValueType::Float)) {
+                            unsigned char want = (unsigned char)(type_index(type_operand->name, type_operand->len) + 1);
+                            unsigned char have = v.ty ? v.ty
+                                : (unsigned char)(type_index(vt == ValueType::Int ? "i32" : "f32", 3) + 1);
+                            matches = (have == want);
+                        }
                     }
                     return make_bool(op == TOK_EQ ? matches : !matches);
                 }

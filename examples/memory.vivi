@@ -15,15 +15,15 @@ _poke(q, 7)
 _poke(q + 15, 9)
 println(_peek(q), _peek(q + 15))   // 7 9
 
-   src := malloc(8)
-   dst := malloc(8)
-   _poke(src, 1)
-   _poke(src + 1, 2)
-   memcpy(dst, src, 2)
-   println(_peek(dst), _peek(dst + 1))   // 1 2 i thunk
+src := malloc(8)
+dst := malloc(8)
+_poke(src, 1)
+_poke(src + 1, 2)
+memcpy(dst, src, 2)
+println(_peek(dst), _peek(dst + 1))   // 1 2 i thunk
 
-    //checks for chunk-refill path
+//checks for chunk-refill path
 
-      for i := 0; i < 20000; i++ { malloc(100) }
-   println("Yup, I'm working!")
-   println(malloc(5000000) != null)
+for i := 0; i < 20000; i++ { malloc(100) }
+println("Yup, I'm working!")
+println(malloc(5000000) != null)
