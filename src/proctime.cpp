@@ -65,6 +65,16 @@ static void pt_check_expr(AstNode *e) {
             }
             if (!callee_is_native) pt_check_expr(e->callee);
             for (int i = 0; i < e->arg_count; i++) pt_check_expr(e->args[i]);
+
+            AstNode *a = e->arg_count == 1 ? e->args[0] : nullptr;
+            if (a && a->type == UNARY && a->op == TOK_MINUS) a = a->operand;
+            ValueType vt;
+            if (a && (a->type == INT_LIT || a->type == FLOAT_LIT) && e->callee->type == IDENT
+                && ident_is_type_name(e->callee->name, e->callee->len, &vt)) {
+                current_line = e->line; current_col = e->col;
+                eval_typecast(e->callee->name, e->callee->len, eval_expr(e->args[0]));
+            }
+
             break;
         }
         case INDEX:

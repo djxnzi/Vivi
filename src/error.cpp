@@ -45,6 +45,7 @@ static const char* error_category(const char *code) {
         case hash("coerce"):
         case hash("math_gap"):
         case hash("cast_mismatch"):
+        case hash("cast_range"):
         case hash("string_cast"):
             return "Type Mismatch";
 
@@ -391,6 +392,7 @@ void print_err(const char* code, ...) {
         // Typecasts
         case hash("cast_mismatch"):             fmt = "Cannot cast this value to %.*s."; break;
         case hash("string_cast"):               fmt = "Cannot cast this value to a string."; break;
+        case hash("cast_range"):                fmt = "Value doesn't fit in %.*s."; break;
 
         // Functions / calls
         case hash("not_function"):              fmt = "'%.*s' is not a function."; break;

@@ -1,5 +1,5 @@
 static void register_builtins(Env *env);
-static Value eval_typecast(const char *name, int len, Value v);
+static Value eval_typecast(const char *name, int len, Value v, char mode = 0);
 static Env *builtin_env = nullptr;
 
 static Value builtin_error(ObjFn *fn);
@@ -47,7 +47,7 @@ static const Builtin builtin_table[] = {
     { "_get",       2, builtin_get },
     { "_set",       3, builtin_set },
     { "_trunc",     2, builtin_trunc },
-    { "_cast",      2, builtin_cast },
+    { "_cast",      3, builtin_cast },
     { "_read",      2, builtin_read },
     { "_open",      2, builtin_open },
     { "_close",     1, builtin_close },

@@ -17,7 +17,7 @@ static void register_builtins(Env *env) {
     }
 }
 
-static Value eval_typecast(const char *tname, int tlen, Value v) {
+static Value eval_typecast(const char *tname, int tlen, Value v, char mode) {
     auto is_ty = [&](const char *s) { int l = (int)strlen(s); return tlen == l && strncmp(tname, s, l) == 0; };
 
     if (is_ty("bool")) return make_bool(is_truthy(v));
@@ -54,14 +54,36 @@ static Value eval_typecast(const char *tname, int tlen, Value v) {
             tmp[s->len] = '\0';
         }
         if (to_int) {
-            bool have_raw = true;
+            bool have_raw = true, over = false, neg = false;
             long raw = 0;
-            if (v.type == ValueType::Int)        raw = v.as.i;
-            else if (v.type == ValueType::Float) raw = (long)v.as.f;
-            else if (v.type == ValueType::Bool)  raw = v.as.b ? 1 : 0;
-            else if (tmp)                        raw = strtol(tmp, nullptr, 10);
-            else have_raw = false;
-            if (have_raw) return with_type(make_int(raw), type_index(tname, tlen) + 1);
+            if (v.type == ValueType::Int) {
+                raw = v.as.i;
+                neg = raw < 0 && v.ty != type_index("u64", 3) + 1;
+            } else if (v.type == ValueType::Float && v.as.f == v.as.f) {
+                neg = v.as.f < 0;
+                over = v.as.f < -0x1p63 || v.as.f >= 0x1p64;
+                if (!over) raw = v.as.f < 0x1p63 ? (long)v.as.f : (long)(unsigned long)v.as.f;
+            } else if (v.type == ValueType::Bool) {
+                raw = v.as.b;
+            } else if (tmp) {
+                errno = 0;
+                neg = strchr(tmp, '-') != nullptr;
+                raw = neg ? strtol(tmp, nullptr, 10) : (long)strtoul(tmp, nullptr, 10);
+                over = errno == ERANGE;
+            } else have_raw = false;
+            if (have_raw) {
+                unsigned char ty = (unsigned char)(type_index(tname, tlen) + 1);
+                Value out = with_type(make_int(raw), ty);
+                bool fits = !over && out.as.i == raw && (raw >= 0 || neg != is_ty("u64"));
+                if (fits || (mode == 'w' && !over)) return out;
+                if (mode == 'c') {
+                    long max = (long)(~0UL >> (64 - atoi(tname + 1) + (tname[0] == 'i')));
+                    long min = tname[0] == 'i' ? ~max : 0;
+                    return with_type(make_int(neg ? min : max), ty);
+                }
+                print_err("cast_range", tlen, tname);
+                return make_null();
+            }
         } else {
             bool have_raw = true;
             double raw = 0;
@@ -331,9 +353,13 @@ static Value builtin_trunc(ObjFn *fn, Value *args) {
 }
 
 static Value builtin_cast(ObjFn *fn, Value *args) {
-    if (!is_text(args[1])) return builtin_error(fn);
-    ObjStr *t = (ObjStr*)args[1].as.obj;
-    return eval_typecast(t->chars, t->len, args[0]);
+    if (!is_text(args[1]) || !is_text(args[2])) return builtin_error(fn);
+    ObjStr *t = (ObjStr*)args[1].as.obj, *m = (ObjStr*)args[2].as.obj;
+    char mode = m->len == 0 ? 0
+              : (m->len == 4 && strncmp(m->chars, "wrap", 4) == 0) ? 'w'
+              : (m->len == 5 && strncmp(m->chars, "clamp", 5) == 0) ? 'c' : '?';
+    if (mode == '?') return builtin_error(fn);
+    return eval_typecast(t->chars, t->len, args[0], mode);
 }
 
 static Value builtin_mmap(ObjFn *fn, Value *args) {

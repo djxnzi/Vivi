@@ -16,7 +16,7 @@ for row := 0; row < 24; row++ {
             zr = t
             n += 1
         }
-        line ~= _cast(_get(shades, n), "rune")
+        line ~= rune(_get(shades, n)) 
     }
     print(line ~ "\n")
 }

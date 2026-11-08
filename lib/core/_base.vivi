@@ -260,7 +260,7 @@ i32 hash := (string v) {
     if i < 0 or i >= _len(self) {
         panic("char_at() index out of range")
     }
-    return _cast(_get(self, i), "rune")
+    return rune(_get(self, i))
 }
 
 #method push :: (v) {
@@ -313,8 +313,8 @@ _lower_at := (s, i) {
 }
 
 _text_greater := (l, r) {
-    ls := _cast(l, "string")
-    rs := _cast(r, "string")
+    ls := string(l)
+    rs := string(r)
     ln := _len(ls)
     rn := _len(rs)
     n := ln
@@ -365,48 +365,48 @@ _text_greater := (l, r) {
 
 // Casts
 
-bool := (v) {
-    return _cast(v, "bool")
+bool := (v, mode := "") {
+    return _cast(v, "bool", mode)
 }
-i8 := (v) {
-    return _cast(v, "i8")
+i8 := (v, mode := "") {
+    return _cast(v, "i8", mode)
 }
-i16 := (v) {
-    return _cast(v, "i16")
+i16 := (v, mode := "") {
+    return _cast(v, "i16", mode)
 }
-i32 := (v) {
-    return _cast(v, "i32")
+i32 := (v, mode := "") {
+    return _cast(v, "i32", mode)
 }
-i64 := (v) {
-    return _cast(v, "i64")
+i64 := (v, mode := "") {
+    return _cast(v, "i64", mode)
 }
-u8 := (v) {
-    return _cast(v, "u8")
+u8 := (v, mode := "") {
+    return _cast(v, "u8", mode)
 }
-u16 := (v) {
-    return _cast(v, "u16")
+u16 := (v, mode := "") {
+    return _cast(v, "u16", mode)
 }
-u32 := (v) {
-    return _cast(v, "u32")
+u32 := (v, mode := "") {
+    return _cast(v, "u32", mode)
 }
-u64 := (v) {
-    return _cast(v, "u64")
+u64 := (v, mode := "") {
+    return _cast(v, "u64", mode)
 }
-f32 := (v) {
-    return _cast(v, "f32")
+f32 := (v, mode := "") {
+    return _cast(v, "f32", mode)
 }
-f64 := (v) {
-    return _cast(v, "f64")
+f64 := (v, mode := "") {
+    return _cast(v, "f64", mode)
 }
-rune := (v) {
-    return _cast(v, "rune")
+rune := (v, mode := "") {
+    return _cast(v, "rune", mode)
 }
-string := (v) {
-    return _cast(v, "string")
+string := (v, mode := "") {
+    return _cast(v, "string", mode)
 }
 // Explicit cast
-cast := (*v, type) {
-    v* = type(v*)
+cast := (*v, type, mode := "") {
+    v* = type(v*, mode)
     return v*
 }
 
