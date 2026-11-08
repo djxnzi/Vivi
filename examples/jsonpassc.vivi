@@ -1,0 +1,113 @@
+// run: build/vivi examples/jsontesting.vivi
+// fix() swaps placeholders in test JSON:  < {   > }   ' "   ^ \
+// jsonpassc : json passing check
+
+#import "Json"
+
+stats := [0, 0]
+println("json tests")
+
+fix := (s) {
+    out := ""
+    for (i := 0; i < s.len; i++) {
+        c := s.char_at(i)
+        if c == "<" {
+            out = out ~ rune(123)
+        } else if c == ">" {
+            out = out ~ rune(125)
+        } else if c == "'" {
+            out = out ~ rune(34)
+        } else if c == "^" {
+            out = out ~ rune(92)
+        } else {
+            out = out ~ c
+        }
+    }
+    return out
+}
+
+len_of := (v) {
+    if v == null { return -1 }
+    return v.len
+}
+
+check := (name, got, want) {
+    if string(got) == string(want) {
+        stats[0] += 1
+        println("PASS", name)
+    } else {
+        stats[1] += 1
+        println("FAIL", name, "-> got:", got, "want:", want)
+    }
+}
+
+check_err := (name, text) {
+    r := json_parse(text)
+    if r == null and json_error() != null {
+        stats[0] += 1
+        println("PASS", name, "->", json_error())
+    } else {
+        stats[1] += 1
+        println("FAIL", name, "-> expected an error, got:", r)
+    }
+}
+
+check("int",        json_stringify(json_parse("42")), "42")
+check("negative",   json_stringify(json_parse("-7")), "-7")
+check("float",      string(json_parse("3.5")), "3.5")
+check("neg float",  string(json_parse("-0.5")), "-0.5")
+check("exponent",   json_parse("1.5e3") == 1500, "true")
+check("neg exp",    json_parse("25e-1") == 2.5, "true")
+check("big int",    string(json_parse("123456789012")), "123456789012")
+check("true",       json_stringify(json_parse("true")), "true")
+check("false",      json_stringify(json_parse("false")), "false")
+check("null",       json_stringify(json_parse("null")), "null")
+check("null no error", json_error() == null, "true")
+check("single char input", string(json_parse("7")), "7")
+
+check("string",     json_parse(fix("'hello'")), "hello")
+check("escapes len", len_of(json_parse(fix("'a^nb^t^'c^^d'"))), 8)
+check("escapes round trip", json_stringify(json_parse(fix("'a^nb^t^'c^^d'"))), fix("'a^nb^t^'c^^d'"))
+check("unicode ascii", json_parse(fix("'^u0041'")), "A")
+check("unicode 2-byte (utf-8)", len_of(json_parse(fix("'^u00e9'"))), 2)
+check("unicode surrogate pair", len_of(json_parse(fix("'^ud83d^ude00'"))), 4)
+
+check("array",   json_stringify(json_parse("[1, 2, 3]")), "[1,2,3]")
+check("nested",  json_stringify(json_parse(fix("<'a': [1, 2, 3], 'b': <'c': null>>"))), fix("<'a':[1,2,3],'b':<'c':null>>"))
+check("whitespace", json_stringify(json_parse(fix("  < 'a' : 1 ,\n 'b' : [ ] >  "))), fix("<'a':1,'b':[]>"))
+check("empty array", json_stringify(json_parse("[]")), "[]")
+check("empty object (limitation)", json_stringify(json_parse(fix("<>"))), "[]")
+
+doc := json_parse(fix("<'name': 'vivi', 'tags': ['a', 'b'], 'ok': true>"))
+if doc == null {
+    check("obj parse", json_error(), "no error")
+} else {
+    check("obj name",  doc["name"], "vivi")
+    check("obj tags",  doc["tags"][1], "b")
+    check("obj bool",  doc["ok"], "true")
+    check("obj len",   len_of(doc), 3)
+}
+
+check("stringify keyed", json_stringify(["name": 1, "list": [true, null, "s"]]), fix("<'name':1,'list':[true,null,'s']>"))
+check("stringify escape", json_stringify("a\"b"), fix("'a^'b'"))
+check("stringify nan -> null", json_stringify(f32(0) / f32(0)), "null")
+
+check("pretty", json_pretty(json_parse(fix("<'a': [1, 2]>")), 2), fix("<\n  'a': [\n    1,\n    2\n  ]\n>"))
+
+check_err("unterminated array",  "[1, 2")
+check_err("missing colon",       fix("<'a' 1>"))
+check_err("bad literal",         "tru")
+check_err("trailing comma",      "[1,]")
+check_err("trailing comma obj",  fix("<'a': 1,>"))
+check_err("unterminated string", fix("'abc"))
+check_err("empty input",         "")
+check_err("trailing garbage",    "1 2")
+check_err("missing comma",       "[1 2]")
+check_err("lone minus",          "-")
+check_err("non-string input",    5)
+
+println("")
+println("passed:", stats[0], "failed:", stats[1])
+if stats[1] > 0 {
+    exit(1)
+}
