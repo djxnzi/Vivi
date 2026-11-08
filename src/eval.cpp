@@ -114,7 +114,7 @@ static Value eval_expr(AstNode *node) {
                     Value *arg_values = nullptr;
                     if (node->arg_count > 0) {
                         arg_values = (Value*)arena_alloc(sizeof(Value) * node->arg_count);
-                        
+
                         ObjFn *bfn = (ObjFn*)maybe_builtin.as.obj;
                         for (int i = 0; i < node->arg_count; i++) {
                             arg_values[i] = eval_expr(node->args[i]);
@@ -313,6 +313,10 @@ static Value eval_expr(AstNode *node) {
                             matches = s->type_name && s->type_name_len == type_operand->len &&
                                 strncmp(s->type_name, type_operand->name, type_operand->len) == 0;
                         }
+                    } else if (v.type == ValueType::Fn) {
+                        Value tv;
+                        matches = env_get(global_env, type_operand->name, type_operand->len, &tv) &&
+                            tv.type == ValueType::Fn && tv.as.obj == v.as.obj;
                     } else {
                         matches = (v.type == vt);
                         if (matches && (vt == ValueType::Int || vt == ValueType::Float)) {
