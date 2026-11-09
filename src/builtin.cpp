@@ -415,3 +415,8 @@ static Value builtin_memcpy(ObjFn *fn, Value *args) {
             (size_t)args[2].as.i);
     return make_null();
 }
+
+static Value builtin_sleep(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int || args[0].as.i < 0) return builtin_error(fn);
+    return make_int(sleep((unsigned int)args[0].as.i));
+}

@@ -250,6 +250,10 @@ i32 hash := (string v) {
     return h
 }
 
+sleep := (i32 n) {
+    _sleep(n)
+}
+
 // Methods
 
 #method len := () {

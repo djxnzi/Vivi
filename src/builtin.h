@@ -29,6 +29,7 @@ static Value builtin_munmap(ObjFn *fn, Value *args);
 static Value builtin_peek(ObjFn *fn, Value *args);
 static Value builtin_poke(ObjFn *fn, Value *args);
 static Value builtin_memcpy(ObjFn *fn, Value *args);
+static Value builtin_sleep(ObjFn *fn, Value *args);
 
 struct Builtin { const char *name; int arity; NativeFn fn; };
 
@@ -56,4 +57,5 @@ static const Builtin builtin_table[] = {
     { "_pipe",      0, builtin_pipe },
     { "_spawn",     4, builtin_spawn },
     { "_wait",      1, builtin_wait },
+    { "_sleep",     1, builtin_sleep }
 };
