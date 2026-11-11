@@ -253,22 +253,6 @@ static AstNode* exec_stmt(AstNode *node) {
                 return nullptr;
             }
 
-            if (node->target->type == IDENT && is_ident(node->target, "self")) {
-                for (Env *e = global_env; e; e = e->parent) {
-                    if (e->has_self) {
-                        TokenType op = node->op;
-
-                        Value rhs = eval_expr(node->value);
-                        Value result = rhs;
-                        if (op != TOK_ASSIGN) result = assign_op_eval(op, e->self_binding, rhs);
-                        e->self_binding = value_copy(result);
-                        return nullptr;
-                    }
-                }
-                print_err("self_outside_method");
-                return nullptr;
-            }
-
             if (node->target->type == POSTFIX && node->target->op == TOK_STAR) {
                 Value p = eval_expr(node->target->operand);
                 if (p.type != ValueType::Int) { print_err("deref_type"); return nullptr; }
@@ -738,12 +722,23 @@ void run_program(AstNode *program, int argc, const char **argv, const char *sour
         argv_arr->count = argv_arr->capacity = argc;
         argv_arr->keys  = (Value*)arena_alloc(sizeof(Value) * argc);
         argv_arr->items = (Value*)arena_alloc(sizeof(Value) * argc);
+
         for (int i = 0; i < argc; i++) {
-            int len = (int)strlen(argv[i]);
-            char *copy = (char*)arena_alloc(len);
-            memcpy(copy, argv[i], len);
-            argv_arr->keys[i] = make_null();
-            argv_arr->items[i] = make_str(copy, len);
+            const char *arg = argv[i];
+            const char *eq = (arg[0] == '-' && arg[1] == '-') ? strchr(arg, '=') : nullptr;
+            if (eq) {
+                int vlen = (int)strlen(eq + 1);
+                char *v = (char*)arena_alloc(vlen);
+                memcpy(v, eq + 1, vlen);
+                argv_arr->keys[i]  = make_null();
+                argv_arr->items[i] = make_str(v, vlen);
+            } else {
+                int len = (int)strlen(arg);
+                char *copy = (char*)arena_alloc(len);
+                memcpy(copy, arg, len);
+                argv_arr->keys[i]  = make_null();
+                argv_arr->items[i] = make_str(copy, len);
+            }
         }
         Value argv_val; argv_val.type = ValueType::Array; argv_val.as.obj = (Obj*)argv_arr;
 

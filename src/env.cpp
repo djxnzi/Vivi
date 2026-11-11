@@ -4,7 +4,6 @@ static Env* env_new(Env *parent) {
     env->count = 0;
     env->capacity = 0;
     env->parent = parent;
-    env->has_self = false;
     env->defers = nullptr;
     env->defer_count = 0;
     env->defer_capacity = 0;

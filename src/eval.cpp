@@ -403,13 +403,6 @@ static Value eval_expr(AstNode *node) {
         }
 
         case IDENT: {
-            if (is_ident(node, "self")) {
-                for (Env *e = global_env; e; e = e->parent) {
-                    if (e->has_self) return e->self_binding;
-                }
-                print_err("self_outside_method");
-                return make_null();
-            }
             Value v;
             if (env_get(global_env, node->name, node->len, &v) &&
                 !(v.type == ValueType::Fn && ((ObjFn*)v.as.obj)->is_native)) return v;
@@ -590,10 +583,23 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
     call_env->call_file = current_file;
     call_env->call_source = program_source;
     
-    if (self) {
-        call_env->has_self = true;
-        call_env->self_binding = *self;
+    int vi = -1;
+    for (int i = 0; i < param_count; i++)
+        if (params[i]->is_variadic) { vi = i; break; }
+    int tail_count = (vi >= 0 && arg_count > vi) ? arg_count - vi : 0;
+
+    if (vi >= 0 && params[vi]->type_expr) {
+        AstNode *param = params[vi];
+        for (int j = 0; j < tail_count; j++) {
+            Value pv = arg_values[vi + j];
+            Value coerced;
+            if (pv.type == ValueType::Null) { print_err("param_null", param->len, param->name); return make_null(); }
+            if (!value_matches_type(param->type_expr, pv, &coerced)) { print_err("param_type_mismatch", param->len, param->name); return make_null(); }
+            arg_values[vi + j] = coerced;
+        }
     }
+
+    bind_implicits(call_env, self, vi >= 0, vi >= 0 ? arg_values + vi : nullptr, tail_count);
 
     Env *saved = global_env;
     global_env = call_env;
@@ -606,45 +612,7 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
     for (int i = 0; i < param_count; i++) {
         AstNode *param = params[i];
 
-        if (param->is_variadic) {
-            int tail_count = (arg_count > i) ? arg_count - i : 0;
-
-            ObjArray *argv_arr = (ObjArray*)arena_alloc(sizeof(ObjArray));
-            argv_arr->obj.type = ValueType::Array;
-            argv_arr->obj.refcount = 0;
-            argv_arr->count = argv_arr->capacity = tail_count;
-            argv_arr->keys  = (Value*)arena_alloc(sizeof(Value) * tail_count);
-            argv_arr->items = (Value*)arena_alloc(sizeof(Value) * tail_count);
-
-            for (int j = 0; j < tail_count; j++) {
-                Value pv = arg_values[i + j];
-                if (param->type_expr) {
-                    if (pv.type == ValueType::Null) {
-                        print_err("param_null", param->len, param->name);
-                        current_file = saved_file;
-                        program_source = saved_source;
-                        global_env = saved;
-                        return make_null();
-                    }
-                    Value coerced;
-                    if (!value_matches_type(param->type_expr, pv, &coerced)) {
-                        print_err("param_type_mismatch", param->len, param->name);
-                        current_file = saved_file;
-                        program_source = saved_source;
-                        global_env = saved;
-                        return make_null();
-                    }
-                    pv = coerced;
-                }
-                argv_arr->keys[j]  = make_null();
-                argv_arr->items[j] = pv;
-            }
-
-            Value argv_val; argv_val.type = ValueType::Array; argv_val.as.obj = (Obj*)argv_arr;
-            env_define(call_env, "argc", 4, make_int(tail_count), false);
-            env_define(call_env, "argv", 4, argv_val, false);
-            break;
-        }
+        if (param->is_variadic) break;
 
         Value pv;
         bool not_null = (i < arg_count) && arg_values[i].type != ValueType::Null;
@@ -696,7 +664,7 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
 
     error_handler = outer;
 
-    if (out_self && call_env->has_self) *out_self = call_env->self_binding;
+    if (out_self && self) *out_self = get_implicit("self");
 
     current_file = saved_file;
     program_source = saved_source;

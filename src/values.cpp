@@ -236,8 +236,8 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
         tmp.len = s->len;
         return value_matches_type(&tmp, v, out);
     }
-    
-    if (!bound) {
+
+    if (!bound && find_enum_decl(type_annotation->name, type_annotation->len)) {
         print_err("not_a_type", type_annotation->len, type_annotation->name);
         *out = v;
         return true;

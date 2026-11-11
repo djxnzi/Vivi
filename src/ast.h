@@ -167,9 +167,7 @@ struct Env {
     Env *parent;
     Env *caller;
     AstNode **defers;
-    Value self_binding;
     int count, capacity;
-    bool has_self;
     int defer_count, defer_capacity;
     int call_line, call_col;
     const char *call_file, *call_source;

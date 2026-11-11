@@ -27,6 +27,7 @@ static Value make_rune(const char *start, int len);
 static Value make_str_from_value(Value v);
 static Value make_ext_asset(AstNode *path_expr);
 
+// Types
 static const struct { const char *name; int len; ValueType vt; } type_names[] = {
     {"string", 6, ValueType::Str},
     {"rune", 4, ValueType::Rune},

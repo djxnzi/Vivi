@@ -113,8 +113,7 @@ static void pt_check_expr(AstNode *e) {
             for (int i = 0; i < e->param_count; i++) {
                 AstNode *p = e->params[i];
                 if (p->is_variadic) {
-                    pt_declare_name("argc", 4);
-                    pt_declare_name("argv", 4);
+                    bind_implicits(pt_check_env, nullptr, true, nullptr, 0);
                     continue;
                 }
                 if (p->value) pt_check_expr(p->value);
@@ -202,8 +201,7 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
             for (int i = 0; i < stmt->param_count; i++) {
                 AstNode *p = stmt->params[i];
                 if (p->is_variadic) {
-                    pt_declare_name("argc", 4);
-                    pt_declare_name("argv", 4);
+                    bind_implicits(pt_check_env, nullptr, true, nullptr, 0);
                     continue;
                 }
                 if (p->value) pt_check_expr(p->value);

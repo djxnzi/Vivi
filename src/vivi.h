@@ -79,6 +79,7 @@ inline Vivi vivi;
 #include <exec.h>
 #include <builtin.h>
 #include <proctime.h>
+#include <implicits.h>
 
 #include <arena.cpp>
 #include <lexer.cpp>
@@ -89,6 +90,7 @@ inline Vivi vivi;
 #include <parseStmt.cpp>
 #include <env.cpp>
 #include <values.cpp>
+#include <implicits.cpp>
 #include <registry.cpp>
 #include <eval.cpp>
 #include <exec.cpp>
