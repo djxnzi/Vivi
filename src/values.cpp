@@ -228,13 +228,19 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
     }
 
     Value alias;
-    if (env_get(global_env, type_annotation->name, type_annotation->len, &alias) &&
-        alias.type == ValueType::Str) {
+    bool bound = env_get(global_env, type_annotation->name, type_annotation->len, &alias);
+    if (bound && alias.type == ValueType::Str) {
         ObjStr *s = (ObjStr*)alias.as.obj;
         AstNode tmp = *type_annotation;
         tmp.name = s->chars;
         tmp.len = s->len;
         return value_matches_type(&tmp, v, out);
+    }
+    
+    if (!bound) {
+        print_err("not_a_type", type_annotation->len, type_annotation->name);
+        *out = v;
+        return true;
     }
 
     *out = v;

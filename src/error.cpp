@@ -37,6 +37,7 @@ static const char* format_op_error(const char *fmt, va_list *args) {
 
 static const char* error_category(const char *code) {
     switch (hash(code)) {
+        case hash("not_a_type"):
         case hash("type_mismatch"):
         case hash("param_type_mismatch"):
         case hash("variadic_type_mismatch"):
@@ -369,6 +370,7 @@ void print_err(const char* code, ...) {
         case hash("reserved"):                  fmt = "'%.*s' collides with a builtin function."; break;
         case hash("reserved_type"):             fmt = "Type name can't be used as a declaration name (got '%.*s')."; break;
         case hash("type_mismatch"):             fmt = "expected %.*s, got %s"; break;
+        case hash("not_a_type"):                fmt = "'%.*s' is not a type."; break;
         case hash("bad_array_size"):            fmt = "Array size for '%.*s' must be a non-negative integer."; break;
         case hash("ident_assignment"):          fmt = "Can only assign to a plain identifier or struct field."; break;
         case hash("param_null"):                fmt = "Parameter '%.*s' is typed and cannot be null."; break;
