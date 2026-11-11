@@ -1,6 +1,12 @@
 static AstNode* parse_primary(Parser *p) {
     int line = p->current.line, col = p->current.col;
 
+    // Enum Selectors
+    if (match(p, TOK_DOT)) {
+        expect(p, TOK_IDENT, "expected variant name after '.'");
+        return make_field_access(nullptr, p->previous.start, p->previous.len, line, col);
+    }
+    
     if (match(p, TOK_INT_LIT)) {
         return make_int_lit(p->previous.int_val, line, col);
     }

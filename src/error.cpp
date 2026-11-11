@@ -70,6 +70,8 @@ static const char* error_category(const char *code) {
 
         case hash("no_enum_variant"):
         case hash("enum_variant"):
+        case hash("selector_variant"):
+        case hash("selector_ambiguous"):
             return "Enum Error";
 
         case hash("bad_array_size"):
@@ -418,6 +420,8 @@ void print_err(const char* code, ...) {
         // Enums
         case hash("no_enum_variant"):           fmt = "Enum '%.*s' has no variant '%.*s'."; break;
         case hash("enum_variant"):              fmt = "Enum variant '%.*s' has no value and the previous variant isn't numeric."; break;
+        case hash("selector_variant"):          fmt = "No enum has a variant '%.*s'."; break;
+        case hash("selector_ambiguous"):        fmt = "'.%.*s' matches more than one enum; qualify it."; break;
 
         // Arrays / indexing
         case hash("arr_index"):                 fmt = "Indexing only works on arrays."; break;

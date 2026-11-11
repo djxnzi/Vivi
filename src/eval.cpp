@@ -499,16 +499,30 @@ static Value eval_expr(AstNode *node) {
         }
 
         case FIELD_ACCESS: {
-            if (node->object->type == IDENT) {
-                Enum *enum_ = find_enum_decl(node->object->name, node->object->len);
-                if (enum_) {
-                    for (int i = 0; i < enum_->decl->variant_count; i++) {
-                        AstNode *variant = enum_->decl->variants[i];
+            if (!node->object || node->object->type == IDENT) {
+                Value found = make_null();
+                int hits = 0;
+                for (int e = 0; e < enum_decl_count; e++) {
+                    Enum *enum_ = &enum_decls[e];
+                    AstNode *d = enum_->decl;
+                    if (node->object && !(d->len == node->object->len && strncmp(d->name, node->object->name, d->len) == 0))
+                        continue;
+                    for (int i = 0; i < d->variant_count; i++) {
+                        AstNode *variant = d->variants[i];
                         if (variant->len == node->len && strncmp(variant->name, node->field, node->len) == 0) {
-                            return enum_->variant_values[i];
+                            found = enum_->variant_values[i];
+                            hits++;
                         }
                     }
-                    print_err("enum_variant", node->object->len, node->object->name, node->len, node->field);
+                    if (node->object) {
+                        if (hits) return found;
+                        print_err("no_enum_variant", node->object->len, node->object->name, node->len, node->field);
+                        return make_null();
+                    }
+                }
+                if (!node->object) {
+                    if (hits == 1) return found;
+                    print_err(hits ? "selector_ambiguous" : "selector_variant", node->len, node->field);
                     return make_null();
                 }
             }

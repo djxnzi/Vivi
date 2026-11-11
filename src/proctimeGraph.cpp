@@ -57,6 +57,7 @@ static void pt_collect_refs(AstNode *expr, ProcNode *owner) {
             break;
 
         case FIELD_ACCESS:
+            if (!expr->object) { pt_add_dep(owner, expr->field, expr->len); break; }
             pt_collect_refs(expr->object, owner);
             break;
 
@@ -85,7 +86,8 @@ static void pt_add_node(const char *name, int len, AstNode *decl, AstNode *init_
 
 static void pt_add_enum_node(const char *name, int len, AstNode *enum_decl, AstNode *decl) {
     pt_nodes = (ProcNode*)grow_array(pt_nodes, pt_node_count, &pt_node_capacity, sizeof(ProcNode), 8);
-    ProcNode *node = &pt_nodes[pt_node_count++];
+    int enum_idx = pt_node_count++;
+    ProcNode *node = &pt_nodes[enum_idx];
     node->decl = decl;
     node->name = name;
     node->name_len = len;
@@ -95,7 +97,15 @@ static void pt_add_enum_node(const char *name, int len, AstNode *enum_decl, AstN
     node->resolved = false;
     for (int v = 0; v < enum_decl->variant_count; v++) {
         AstNode *variant = enum_decl->variants[v];
-        if (variant->value) pt_collect_refs(variant->value, node);
+        if (variant->value) pt_collect_refs(variant->value, &pt_nodes[enum_idx]);
+
+        pt_nodes = (ProcNode*)grow_array(pt_nodes, pt_node_count, &pt_node_capacity, sizeof(ProcNode), 8);
+        ProcNode *vn = &pt_nodes[pt_node_count++];
+        *vn = {};
+        vn->decl = decl;
+        vn->name = variant->name;
+        vn->name_len = variant->len;
+        pt_add_dep(vn, name, len);
     }
 }
 
