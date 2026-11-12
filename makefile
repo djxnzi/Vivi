@@ -1,7 +1,7 @@
 .PHONY: all build run clean help install uninstall
 CXX		:= g++
 FLAGS  	:= -std=c++17 -Wall -Wextra -Isrc
-MAKEFLAGS += --silent
+MAKEFLAGS += --silent -j$(shell nproc)
 SRCS   	:= main.cpp
 
 # Works everywhere including NixOS.
