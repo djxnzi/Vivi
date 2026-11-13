@@ -195,13 +195,46 @@ panic := (string str) {
 }
 
 // Memory Management and such.
+_read64 := (p) {
+    v := 0
+    i := 7
+    while i >= 0 {
+        v = v * 256 + _peek(p + i)     // p must be an untyped int -> 1-byte read
+        i -= 1
+    }
+    return v
+}
+
+_write64 := (p, v) {
+    for i := 0; i < 8; i++ {
+        _poke(p + i, u8(v % 256))      // u8() forces a 1-byte write
+        v = v / 256
+    }
+}
 
 _heap_ptr := 0
 _heap_end := 0
 
+_BINS := 64                            // size classes up to 1008 bytes
+_free_bins := []
+_bins_ready := false
+
 malloc := (size) {
+    if !_bins_ready {                  // _set is a builtin, so no #method ordering issues
+        for i := 0; i < _BINS; i++ { _set(_free_bins, i, 0) }
+        _bins_ready = true
+    }
+
     size = (size + 15) / 16 * 16
-    total := size + 16               // 16-byte header keeps alignment
+    bin := size / 16
+    if bin < _BINS and _free_bins[bin] != 0 {
+        q := _free_bins[bin]
+        _free_bins[bin] = _read64(q)   // pop: next pointer lives in the payload
+        _write64(q - 8, 0)             // clear the "freed" marker
+        return q
+    }
+
+    total := size + 16
     if _heap_ptr + total > _heap_end {
         chunk := 1048576
         if total > chunk { chunk = total }
@@ -211,15 +244,20 @@ malloc := (size) {
     }
     p := _heap_ptr
     _heap_ptr += total
-    n := size
-    for i := 0; i < 8; i++ {         // store size in the header
-        _poke(p + i, n % 256)
-        n = n / 256
-    }
+    _write64(p, size)                  // header word 0: size (word 1 is zero from mmap)
     return p + 16
 }
 
-free := (ptr) { }                    // free list comes later as it should.
+free := (ptr) {
+    if ptr == null { return }
+    if _read64(ptr - 8) == 1 { panic("free(): double free") }
+    size := _read64(ptr - 16)
+    bin := size / 16
+    if bin >= _BINS { return }         // big blocks leak for now
+    _write64(ptr - 8, 1)               // mark freed
+    _write64(ptr, _free_bins[bin])     // push onto the bin
+    _free_bins[bin] = ptr
+}
 
 memcpy := (dst, src, n) { _memcpy(dst, src, n) }
 
