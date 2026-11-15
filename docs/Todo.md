@@ -104,26 +104,6 @@ u32 enum UnsignedNames {
 }
 ```
 
-### Implicit for loop iterators (i/ix)
-Also Jai flavored. I think Jai uses it/it_value, but i/ix is simpler.
-```
-enum Names {
-    Tom,
-    Dick,
-    Harry
-}
-
-for Names {
-    print(i)        // index 0, 1, 2
-    print(ix)       // index value Tom, Dick, harry
-}
-// Same as
-for i in Names {
-    print(i)        // index 0, 1, 2
-    print(Names.i)  // index value Tom, Dick, harry
-}
-```
-
 ### Defer blocks - also fix environment capture
 Top level defers have no scope, that means imports can't defer.
 ```
