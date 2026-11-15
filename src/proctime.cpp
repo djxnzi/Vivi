@@ -242,20 +242,31 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
             break;
         }
 
-        case FOR_RANGE:
+        case FOR_RANGE: {
+            Env *saved = pt_check_env;
             if (checking) {
                 pt_check_expr(stmt->start);
                 pt_check_expr(stmt->end);
+                pt_check_env = env_new(pt_check_env);
+                Value none = make_null();
+                bind_implicits(pt_check_env, nullptr, false, &none, 0);
             }
             pt_walk_stmt(stmt->body, owner_try, checking);
+            if (checking) pt_check_env = saved;
             break;
+        }
 
         case FOR_IN: {
             Env *saved = pt_check_env;
             if (checking) {
                 pt_check_expr(stmt->iterable);
                 pt_check_env = env_new(pt_check_env);
-                pt_declare_name(stmt->key_name, stmt->key_len);
+                if (stmt->key_name) {
+                    pt_declare_name(stmt->key_name, stmt->key_len);
+                } else {
+                    Value none = make_null();
+                    bind_implicits(pt_check_env, nullptr, false, &none, 0);
+                }
                 if (stmt->val_name) pt_declare_name(stmt->val_name, stmt->val_len);
             }
             pt_walk_stmt(stmt->body, owner_try, checking);

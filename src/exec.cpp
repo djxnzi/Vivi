@@ -60,8 +60,9 @@ static AstNode* exec_stmt(AstNode *node) {
             }
 
             if (!should_namespace) {
-                for (int i = 0; i < import_program->stmt_count; i++)
+                for (int i = 0; i < import_program->stmt_count; i++) {
                     exec_stmt(import_program->stmts[i]);
+                }
                 current_file = saved_file;
                 program_source = saved_source;
                 return nullptr;
@@ -70,10 +71,12 @@ static AstNode* exec_stmt(AstNode *node) {
             Env *saved = global_env;
             Env *module_env = env_new(root_env);
             global_env = module_env;
-            for (int i = 0; i < import_program->stmt_count; i++)
+            for (int i = 0; i < import_program->stmt_count; i++) {
                 exec_stmt(import_program->stmts[i]);
-            for (int i = module_env->defer_count - 1; i >= 0; i--)
+            }
+            for (int i = module_env->defer_count - 1; i >= 0; i--) {
                 eval_expr(module_env->defers[i]);
+            }
             global_env = saved;
 
             current_file = saved_file;
@@ -172,8 +175,7 @@ static AstNode* exec_stmt(AstNode *node) {
             if (node->is_static && node->static_slot) {
                 ObjVar *box = (ObjVar*)node->static_slot;
                 env_define(global_env, node->name, node->len, box->value, is_const, is_const, false, node->static_slot);
-                env_set_type_annotation(global_env, node->name, node->len,
-                    node->has_type_annotation ? node->type_annotation : nullptr);
+                env_set_type_annotation(global_env, node->name, node->len, node->has_type_annotation ? node->type_annotation : nullptr);
                 return nullptr;
             }
 
@@ -335,10 +337,8 @@ static AstNode* exec_stmt(AstNode *node) {
         }
 
         case IF_STMT: {
-            if (is_truthy(eval_expr(node->cond)))
-                return exec_stmt(node->then_branch);
-            if (node->else_branch)
-                return exec_stmt(node->else_branch);
+            if (is_truthy(eval_expr(node->cond))) return exec_stmt(node->then_branch);
+            if (node->else_branch) return exec_stmt(node->else_branch);
             return nullptr;
         }
 
@@ -386,25 +386,75 @@ static AstNode* exec_stmt(AstNode *node) {
             return nullptr;
         }
 
-        case FOR_RANGE: {
-            Value start_v = eval_expr(node->start);
-            Value end_v = eval_expr(node->end);
-            if (start_v.type != ValueType::Int || end_v.type != ValueType::Int) {
-                print_err("for_range");
-                return nullptr;
-            }
-            for (long i = start_v.as.i; i <= end_v.as.i; i++) {
-                AstNode *signal = exec_stmt(node->body);
-                if (signal) {
-                    if (signal->type == BREAK_STMT) break;
-                    if (signal->type == CONTINUE_STMT) continue;
-                    return signal;
-                }
-            }
-            return nullptr;
-        }
-
+        case FOR_RANGE:
         case FOR_IN: {
+            if (node->type == FOR_RANGE || !node->key_name) {
+                bool range = (node->type == FOR_RANGE);
+                long lo = 0, hi = -1;
+                if (range) {
+                    Value start_v = eval_expr(node->start);
+                    Value end_v   = eval_expr(node->end);
+                    if (start_v.type != ValueType::Int || end_v.type != ValueType::Int) {
+                        print_err("for_range");
+                        return nullptr;
+                    }
+                    lo = start_v.as.i;
+                    hi = end_v.as.i;
+                }
+
+                Enum *en = (!range && node->iterable->type == IDENT) ? find_enum_decl(node->iterable->name, node->iterable->len) : nullptr;
+                Value iterable = (range || en) ? make_null() : eval_expr(node->iterable);
+                ObjArray  *arr = (iterable.type == ValueType::Array)  ? (ObjArray*)iterable.as.obj  : nullptr;
+                ObjStruct *st  = (iterable.type == ValueType::Struct) ? (ObjStruct*)iterable.as.obj : nullptr;
+                ObjStr    *str = (iterable.type == ValueType::Str || iterable.type == ValueType::Rune) ? (ObjStr*)iterable.as.obj : nullptr;
+                if (!range && !en && !arr && !st && !str) { print_err("for_in"); return nullptr; }
+
+                // capture outer values
+                Value outer_i = get_implicit("i"), outer_ix = get_implicit("ix");
+
+                LoopFrame frame;
+                frame.var_count = 0;
+                Value none = make_null();
+
+                for (const Implicit &implicit : implicit_table) {
+                    Value v;
+                    if (frame.var_count == 2 || !implicit.make(nullptr, false, &none, 0, &v)) continue;
+                    frame.vars[frame.var_count].name = implicit.name;
+                    frame.vars[frame.var_count].len  = implicit.len;
+                    frame.var_count++;
+                }
+                loop_stack_push(frame);
+
+                AstNode *result = nullptr;
+                for (long k = 0; k < (range ? hi - lo + 1 : en ? en->decl->variant_count : arr ? arr->count : st ? st->count : str->len); k++) {
+                    Value made = range ? make_int(lo + k) : str ? make_rune(str->chars + k, 1) : make_null();
+                    Value *item = en  ? &en->variant_values[k]
+                                : arr ? &arr->items[k]
+                                : st  ? &st->fields[k].value
+                                :       &made;
+
+                    bind_implicits(global_env, nullptr, false, item, (int)k);
+
+                    AstNode *signal = exec_stmt(node->body);
+
+                    // write back
+                    if (arr && k < arr->count) arr->items[k] = value_copy(get_implicit("ix"));
+                    if (st  && k < st->count)  st->fields[k].value = value_copy(get_implicit("ix"));
+
+                    if (signal) {
+                        if (signal->type == BREAK_STMT) break;
+                        if (signal->type == CONTINUE_STMT) continue;
+                        result = signal;
+                        break;
+                    }
+                }
+                loop_stack_count--;
+                if (outer_i.type == ValueType::Int) {
+                    bind_implicits(global_env, nullptr, false, &outer_ix, (int)outer_i.as.i);
+                }
+                return result;
+            }
+
             bool single = (node->val_name == nullptr);
 
             LoopFrame frame;
@@ -417,8 +467,7 @@ static AstNode* exec_stmt(AstNode *node) {
             }
             loop_stack_push(frame);
 
-            if (single && node->iterable->type == BINARY &&
-                node->iterable->op == TOK_SLICE) {
+            if (single && node->iterable->type == BINARY && node->iterable->op == TOK_SLICE) {
                 AstNode *range = node->iterable;
                 Value start_v = eval_expr(range->left);
                 Value end_v   = eval_expr(range->right);
@@ -441,6 +490,31 @@ static AstNode* exec_stmt(AstNode *node) {
                 return nullptr;
             }
 
+            if (node->iterable->type == IDENT) {
+                Enum *en = find_enum_decl(node->iterable->name, node->iterable->len);
+                if (en) {
+                    AstNode *d = en->decl;
+                    for (int i = 0; i < d->variant_count; i++) {
+                        if (single) {
+                            env_define(global_env, node->key_name, node->key_len, en->variant_values[i], false);
+                        } else {
+                            Value key_val = make_str(d->variants[i]->name, d->variants[i]->len);
+                            env_define(global_env, node->key_name, node->key_len, key_val, false);
+                            env_define(global_env, node->val_name, node->val_len, en->variant_values[i], false);
+                        }
+                        AstNode *signal = exec_stmt(node->body);
+                        if (signal) {
+                            if (signal->type == BREAK_STMT) break;
+                            if (signal->type == CONTINUE_STMT) continue;
+                            loop_stack_count--;
+                            return signal;
+                        }
+                    }
+                    loop_stack_count--;
+                    return nullptr;
+                }
+            }
+
             Value iterable = eval_expr(node->iterable);
 
             if (iterable.type == ValueType::Struct) {
@@ -452,6 +526,28 @@ static AstNode* exec_stmt(AstNode *node) {
                         Value key_val = make_str(s->fields[i].name, s->fields[i].len);
                         env_define(global_env, node->key_name, node->key_len, key_val, false);
                         env_define(global_env, node->val_name, node->val_len, s->fields[i].value, false);
+                    }
+                    AstNode *signal = exec_stmt(node->body);
+                    if (signal) {
+                        if (signal->type == BREAK_STMT) break;
+                        if (signal->type == CONTINUE_STMT) continue;
+                        loop_stack_count--;
+                        return signal;
+                    }
+                }
+                loop_stack_count--;
+                return nullptr;
+            }
+
+            if (iterable.type == ValueType::Str || iterable.type == ValueType::Rune) {
+                ObjStr *str = (ObjStr*)iterable.as.obj;
+                for (int i = 0; i < str->len; i++) {
+                    Value rune = make_rune(str->chars + i, 1);
+                    if (single) {
+                        env_define(global_env, node->key_name, node->key_len, rune, false);
+                    } else {
+                        env_define(global_env, node->key_name, node->key_len, make_int(i), false);
+                        env_define(global_env, node->val_name, node->val_len, rune, false);
                     }
                     AstNode *signal = exec_stmt(node->body);
                     if (signal) {
@@ -711,8 +807,9 @@ void run_program(AstNode *program, int argc, const char **argv, const char *sour
     error_handler = &top_handler;
     if (setjmp(top_handler) != 0) exit(top_exit_code);
 
-    for (int i = 0; i < program->stmt_count; i++)
+    for (int i = 0; i < program->stmt_count; i++) {
         exec_stmt(program->stmts[i]);
+    }
 
     Value main_fn;
     if (env_get(global_env, "main", 4, &main_fn) && main_fn.type == ValueType::Fn) {
@@ -746,8 +843,9 @@ void run_program(AstNode *program, int argc, const char **argv, const char *sour
         call_function((ObjFn*)main_fn.as.obj, main_args, 2);
     }
 
-    for (int i = global_env->defer_count - 1; i >= 0; i--)
+    for (int i = global_env->defer_count - 1; i >= 0; i--) {
         eval_expr(global_env->defers[i]);
+    }
 
     if (stdout_open_line) fputc('\n', stdout);
     if (error_count > 0) exit(CODE_ERROR);

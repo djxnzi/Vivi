@@ -13,3 +13,5 @@ static Value call_method(ObjFn *fn, AstNode *receiver_expr, Value obj, Value *ar
 
 struct FnShape { AstNode **params; int param_count; const char *name; int len; AstNode *return_type; AstNode *body; };
 static FnShape get_fn_shape(AstNode *decl) ;
+
+static bool forwarded_args(AstNode *arg, ObjArray **out);

@@ -46,12 +46,12 @@ all += bench("float     ", 100000, (n) {
 
 all += bench("array     ", 100000, (n) {
     arr := []
-    for i := 0; i < 3000; i++ { arr.push(i) }
-    for i := 0; i < n; i++ { arr[i % 3000] = arr[(i + 1) % 3000] + 1 }
+    for i := 0; i < 2000; i++ { arr.push(i) }
+    for i := 0; i < n; i++ { arr[i % 2000] = arr[(i + 1) % 2000] + 1 }
     return n
 })
 
-all += bench("sieve     ", 3000, (n) {
+all += bench("sieve     ", 2000, (n) {
     flags := []
     for i := 0; i <= n; i++ { flags.push(1) }
     marks := 0

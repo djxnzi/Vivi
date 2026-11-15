@@ -220,23 +220,39 @@ static Value eval_expr(AstNode *node) {
             }
             ObjFn *fn = (ObjFn*)callee.as.obj;
 
-            Value *arg_values = nullptr;
-            if (node->arg_count > 0) {
-                arg_values = (Value*)arena_alloc(sizeof(Value) * node->arg_count);
-                FnShape shape = get_fn_shape(fn->decl);
-                for (int i = 0; i < node->arg_count; i++) {
-                    AstNode *arg = node->args[i];
-                    AstNode *ptype = (i < shape.param_count) ? shape.params[i]->type_expr : nullptr;
-                    if (arg->type == IDENT && ptype && ptype->type == UNARY && ptype->op == TOK_STAR) {
-                        Value *slot = resolve_place(arg);
-                        arg_values[i] = slot ? make_int((long)slot) : make_null();
-                    } else {
-                        arg_values[i] = eval_expr(arg);
-                    }
+            FnShape shape = get_fn_shape(fn->decl);
+
+            int vi = -1;
+            for (int i = 0; i < shape.param_count; i++) {
+                if (shape.params[i]->is_variadic) { vi = i; break; }
+            }
+
+            int total = node->arg_count;
+            ObjArray *fwd;
+            for (int i = vi; vi >= 0 && i < node->arg_count; i++) {
+                if (forwarded_args(node->args[i], &fwd)) total += fwd->count - 1;
+            }
+
+            Value *arg_values = total > 0 ? (Value*)arena_alloc(sizeof(Value) * total) : nullptr;
+            int w = 0;
+            for (int i = 0; i < node->arg_count; i++) {
+                AstNode *arg = node->args[i];
+
+                if (vi >= 0 && i >= vi && forwarded_args(arg, &fwd)) {
+                    for (int j = 0; j < fwd->count; j++) arg_values[w++] = fwd->items[j];
+                    continue;
+                }
+
+                AstNode *ptype = (i < shape.param_count) ? shape.params[i]->type_expr : nullptr;
+                if (arg->type == IDENT && ptype && ptype->type == UNARY && ptype->op == TOK_STAR) {
+                    Value *slot = resolve_place(arg);
+                    arg_values[w++] = slot ? make_int((long)slot) : make_null();
+                } else {
+                    arg_values[w++] = eval_expr(arg);
                 }
             }
 
-            return call_function(fn, arg_values, node->arg_count, nullptr, node->line, node->col);
+            return call_function(fn, arg_values, w, nullptr, node->line, node->col);
         }
 
         case UNARY: {
@@ -321,8 +337,7 @@ static Value eval_expr(AstNode *node) {
                         matches = (v.type == vt);
                         if (matches && (vt == ValueType::Int || vt == ValueType::Float)) {
                             unsigned char want = (unsigned char)(type_index(type_operand->name, type_operand->len) + 1);
-                            unsigned char have = v.ty ? v.ty
-                                : (unsigned char)(type_index(vt == ValueType::Int ? "i32" : "f32", 3) + 1);
+                            unsigned char have = v.ty ? v.ty : (unsigned char)(type_index(vt == ValueType::Int ? "i32" : "f32", 3) + 1);
                             matches = (have == want);
                         }
                     }
@@ -404,12 +419,10 @@ static Value eval_expr(AstNode *node) {
 
         case IDENT: {
             Value v;
-            if (env_get(global_env, node->name, node->len, &v) &&
-                !(v.type == ValueType::Fn && ((ObjFn*)v.as.obj)->is_native)) return v;
+            if (env_get(global_env, node->name, node->len, &v) && !(v.type == ValueType::Fn && ((ObjFn*)v.as.obj)->is_native)) return v;
 
             ValueType vt;
-            if (ident_is_type_name(node->name, node->len, &vt))
-                return make_str(node->name, node->len);
+            if (ident_is_type_name(node->name, node->len, &vt)) return make_str(node->name, node->len);
             print_err("undefined", node->len, node->name);
             return make_null();
         }
@@ -584,8 +597,11 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
     call_env->call_source = program_source;
     
     int vi = -1;
-    for (int i = 0; i < param_count; i++)
-        if (params[i]->is_variadic) { vi = i; break; }
+    for (int i = 0; i < param_count; i++) {
+        if (params[i]->is_variadic) {
+            vi = i; break;
+        }
+    }
     int tail_count = (vi >= 0 && arg_count > vi) ? arg_count - vi : 0;
 
     if (vi >= 0 && params[vi]->type_expr) {
@@ -736,4 +752,14 @@ static FnShape get_fn_shape(AstNode *decl) {
         decl->return_type,
         decl->body
     };
+}
+
+static bool forwarded_args(AstNode *arg, ObjArray **out) {
+    if (arg->type != IDENT || arg->len != 4 || strncmp(arg->name, "args", 4) != 0) return false;
+    Value v;
+    if (!env_get(global_env, "args", 4, &v) || v.type != ValueType::Array) return false;
+    ObjArray *pair = (ObjArray*)v.as.obj;
+    if (pair->count != 2 || pair->items[1].type != ValueType::Array) return false;
+    *out = (ObjArray*)pair->items[1].as.obj;
+    return true;
 }

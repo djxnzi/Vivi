@@ -28,6 +28,24 @@ static bool implicit_self(Value *self, bool, Value *, int, Value *out) {
     return true;
 }
 
+static bool implicit_args(Value *self, bool variadic, Value *tail, int count, Value *out) {
+    Value argc, argv;
+    if (!implicit_argc(self, variadic, tail, count, &argc)) return false;
+    implicit_argv(self, variadic, tail, count, &argv);
+    ObjArray *a = (ObjArray*)arena_alloc(sizeof(ObjArray));
+    a->obj.type = ValueType::Array;
+    a->obj.refcount = 0;
+    a->count = a->capacity = 2;
+    a->keys  = (Value*)arena_alloc(sizeof(Value) * 2);
+    a->items = (Value*)arena_alloc(sizeof(Value) * 2);
+    a->keys[0] = a->keys[1] = make_null();
+    a->items[0] = argc;
+    a->items[1] = argv;
+    out->type = ValueType::Array;
+    out->as.obj = (Obj*)a;
+    return true;
+}
+
 static bool implicit_argc(Value *, bool variadic, Value *, int count, Value *out) {
     if (!variadic) return false;
     *out = make_int(count);
@@ -48,5 +66,17 @@ static bool implicit_argv(Value *, bool variadic, Value *tail, int count, Value 
     }
     out->type = ValueType::Array;
     out->as.obj = (Obj*)a;
+    return true;
+}
+
+static bool implicit_i(Value *, bool variadic, Value *tail, int count, Value *out) {
+    if (variadic || !tail) return false;
+    *out = make_int(count);
+    return true;
+}
+
+static bool implicit_ix(Value *, bool variadic, Value *tail, int, Value *out) {
+    if (variadic || !tail) return false;
+    *out = value_copy(*tail);
     return true;
 }

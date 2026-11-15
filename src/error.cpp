@@ -377,7 +377,7 @@ void print_err(const char* code, ...) {
 
         // Control flow
         case hash("for_range"):                 fmt = "For loop range bounds must be integers."; break;
-        case hash("for_in"):                    fmt = "For-in requires an array or struct."; break;
+        case hash("for_in"):                    fmt = "For in requires an array, struct, string or enum."; break;
         case hash("non_numeric_range"):         fmt = "Switch range case only supports numbers, lang gap needs fixing."; break;
 
         // Operators / expressions

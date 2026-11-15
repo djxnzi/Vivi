@@ -362,7 +362,7 @@ static AstNode* parse_for_in(Parser *p, int line, int col, bool has_parens) {
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
     }
 
-    AstNode *body = parse_block(p);
+    AstNode *body = check(p, TOK_LBRACE) ? parse_block(p) : parse_statement(p);
     return make_for_in(key_name, key_len, val_name, val_len, iterable, body, line, col);
 }
 
@@ -380,7 +380,7 @@ static AstNode* parse_for_cstyle(Parser *p, int line, int col, bool has_parens) 
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
     }
 
-    AstNode *body = parse_block(p);
+    AstNode *body = check(p, TOK_LBRACE) ? parse_block(p) : parse_statement(p);
     return make_for_cstyle(init, cond, incr, body, line, col);
 }
 
@@ -396,7 +396,9 @@ static AstNode* parse_for_range(Parser *p, int line, int col, bool has_parens) {
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
     }
 
-    AstNode *body = parse_block(p);
+    AstNode *body = check(p, TOK_LBRACE) ? parse_block(p) : parse_statement(p);
+    if (!end) return make_for_in(nullptr, 0, nullptr, 0, start, body, line, col);
+
     return make_for_range(start, end, body, line, col);
 }
 
@@ -412,7 +414,7 @@ static AstNode* parse_for_in_single(Parser *p, int line, int col, bool has_paren
         expect(p, TOK_RPAREN, "expected ')' to close for-loop header");
     }
 
-    AstNode *body = parse_block(p);
+    AstNode *body = check(p, TOK_LBRACE) ? parse_block(p) : parse_statement(p);
     return make_for_in(name, name_len, nullptr, 0, iterable, body, line, col);
 }
 

@@ -59,6 +59,12 @@ file_read := (path) {
     return text
 }
 
+file_create := (path) {
+    fd := _open(path, "w")
+    _write(fd, "")
+    _close(fd)
+}
+
 file_write := (path, text) {
     fd := _open(path, "w")
     _write(fd, text)
