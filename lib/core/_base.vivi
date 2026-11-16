@@ -117,10 +117,15 @@ exit := (i32 code := 0) {
     if code in exit_codes {
         _exit(code);
     } else {
-        println("Program exited with abnormal exit code {code}")
+        if code in [67, 69, 420, 1337] {
+            println("Program exited with funny number {code}")
+        } else {
+            println("Program exited with abnormal exit code {code}")
+        }
         _exit(code);
     }
 }
+
 panic := (string str) {
     /* Exit codes:
         0: ok
