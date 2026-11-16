@@ -1,28 +1,39 @@
 // print functions
 
+// Standard file descriptors on *nix systems
+stdout := 1
+stderr := 2
+
 print := (...) {
-    _write(1, string(argv[0]))
+    fprint(stdout, args)
+}
+
+fprint := (int fd, ...) {
+    _write(fd, string(argv[0]))
     for i := 1; i < argc; i++ {
-        _write(1, " " ~ string(argv[i]))
+        _write(fd, " " ~ string(argv[i]))
     }
 }
 
 println := (...) {
-    _write(1, string(argv[0]))
+    _write(stdout, string(argv[0]))
     for i := 1; i < argc; i++ {
-        _write(1, " " ~ string(argv[i]))
+        _write(stdout, " " ~ string(argv[i]))
     }
-
-    _write(1, "\n")
+    _write(stdout, "\n")
 }
 
 printf := (string fmt, ...) {
+    fprintf(stdout, fmt, args)
+}
+
+fprintf := (int fd, string fmt, ...) {
     a := 0
     for i := 0; i < fmt.len; i++ {
         if fmt.char_at(i) == "%" {
             i++
             if i >= fmt.len {
-                print("%")
+                fprint(fd, "%")
                 break
             }
             spec := fmt.char_at(i)
@@ -35,7 +46,7 @@ printf := (string fmt, ...) {
                     n := i32(argv[a])
                     a++
                     if n == 0 {
-                        print("0")
+                        fprint(fd, "0")
                     }
                     is_negative := false
                     if n < 0 {
@@ -57,11 +68,11 @@ printf := (string fmt, ...) {
                         n = n / base
                     }
                     if is_negative {
-                        print("-")
+                        fprint(fd, "-")
                     }
                     j := buf.len - 1
                     while j >= 0 {
-                        print(string(buf[j]))
+                        fprint(fd, string(buf[j]))
                         j -= 1
                     }
                 "s":
@@ -70,17 +81,17 @@ printf := (string fmt, ...) {
                     if s == null {
                         s = "(null)"
                     }
-                    print(string(s))
+                    fprint(fd, string(s))
                 "c":
-                    print(string(rune(argv[a])))
+                    fprint(fd, string(rune(argv[a])))
                     a++
                 "%":
-                    print("%")
+                    fprint(fd, "%")
                 default:
-                    print("%" ~ spec)
+                    fprint(fd, "%" ~ spec)
             }
         } else {
-            print(string(fmt.char_at(i)))
+            fprint(fd, string(fmt.char_at(i)))
         }
     }
 }
@@ -88,87 +99,16 @@ printf := (string fmt, ...) {
 // stderr prints
 
 eprint := (...) {
-    _write(2, string(argv[0]))
-    for i := 1; i < argc; i++ {
-        _write(2, " " ~ string(argv[i]))
-    }
+    fprint(stderr, args)
 }
 
 eprintln := (...) {
-    _write(2, string(argv[0]))
-    for i := 1; i < argc; i++ {
-        _write(2, " " ~ string(argv[i]))
-    }
-    _write(2, "\n")
+    eprint(args)
+    _write(stderr, "\n")
 }
 
 eprintf := (string fmt, ...) {
-    a := 0
-    for i := 0; i < fmt.len; i++ {
-        if fmt.char_at(i) == "%" {
-            i++
-            if i >= fmt.len {
-                eprint("%")
-                break
-            }
-            spec := fmt.char_at(i)
-            base := 10
-            switch spec {
-                "x":
-                    base = 16
-                    fallthrough
-                "d":
-                    n := i32(argv[a])
-                    a++
-                    if n == 0 {
-                        eprint("0")
-                    }
-                    is_negative := false
-                    if n < 0 {
-                        if base == 10 {
-                            is_negative = true
-                            n = -n
-                        } else {
-                            n += 4294967296
-                        }
-                    }
-                    buf := []
-                    while n > 0 {
-                        rem := n % base
-                        if rem < 10 {
-                            buf.push(rune(rem + 48))
-                        } else {
-                            buf.push(rune(rem - 10 + 97))
-                        }
-                        n = n / base
-                    }
-                    if is_negative {
-                        eprint("-")
-                    }
-                    j := buf.len - 1
-                    while j >= 0 {
-                        eprint(string(buf[j]))
-                        j -= 1
-                    }
-                "s":
-                    s := argv[a]
-                    a++
-                    if s == null {
-                        s = "(null)"
-                    }
-                    eprint(string(s))
-                "c":
-                    eprint(string(rune(argv[a])))
-                    a++
-                "%":
-                    eprint("%")
-                default:
-                    eprint("%" ~ spec)
-            }
-        } else {
-            eprint(string(fmt.char_at(i)))
-        }
-    }
+    fprintf(stderr, fmt, args)
 }
 
 exit := (i32 code := 0) {
