@@ -477,10 +477,10 @@ json_encode := (v, pad, level) {
     if v == rune {
         return json_quote(string(v))
     }
-    if v == i64 {
+    if v == i32 || v == i64 {
         return string(v) 
     }
-    if v == f32 {
+    if v == f32 || v == f64 {
         if v - v != 0 { return "null" }
         return string(v)
     }

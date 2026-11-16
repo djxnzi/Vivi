@@ -110,7 +110,13 @@ static bool label_matches(AstNode *label, Value scrutinee) {
     if (label->type == IDENT) {
         ValueType vt;
         if (ident_is_type_name(label->name, label->len, &vt)) {
-            return scrutinee.type == vt;
+            bool matches = (scrutinee.type == vt);
+            if (matches && (vt == ValueType::Int || vt == ValueType::Float)) {
+                unsigned char want = (unsigned char)(type_index(label->name, label->len) + 1);
+                unsigned char have = scrutinee.ty ? scrutinee.ty : (unsigned char)(type_index(vt == ValueType::Int ? "i32" : "f32", 3) + 1);
+                matches = (have == want);
+            }
+            return matches;
         }
         AstNode *struct_decl = find_struct_decl(label->name, label->len);
         if (struct_decl) {
