@@ -10,7 +10,7 @@ json_error := () {
 }
 
 json_at := (i) {
-    return i32(json_text.char_at(i))
+    return i64(json_text.char_at(i))
 }
 
 json_fail := (msg) {
@@ -464,16 +464,22 @@ json_quote := (s) {
 }
 
 json_encode := (v, pad, level) {
-        if v == null {
+    if v == null {
         if string(v) == "null" { return "null" }
     }
     if v == bool {
         if v { return "true" }
         return "false"
     }
-    if v == string { return json_quote(v) }
-    if v == rune { return json_quote(string(v)) }
-    if v == i32 { return string(v) }
+    if v == string {
+        return json_quote(v)
+    }
+    if v == rune {
+        return json_quote(string(v))
+    }
+    if v == i64 {
+        return string(v) 
+    }
     if v == f32 {
         if v - v != 0 { return "null" }
         return string(v)
@@ -482,15 +488,18 @@ json_encode := (v, pad, level) {
     is_obj := false
     has_items := false
     idx := 0
-    for k, item in v {
-        has_items = true
-        if string(k) != string(idx) {
-            is_obj = true
-            break
+
+    if v != i32 {
+        for k, item in v {
+            has_items = true
+            if string(k) != string(idx) {
+                is_obj = true
+                break
+            }
+            idx += 1
         }
-        idx += 1
+        if !has_items { return "[]" }
     }
-    if !has_items { return "[]" }
 
     open_code := 91
     close_code := 93
@@ -502,15 +511,18 @@ json_encode := (v, pad, level) {
     out := ""
     out = out ~ rune(open_code)
     is_first := true
-    for k2, item2 in v {
-        if !is_first { out = out ~ rune(44) }
-        is_first = false
-        if pad != "" { out = out ~ "\n" ~ json_repeat(pad, level + 1) }
-        if is_obj {
-            out = out ~ json_quote(string(k2)) ~ rune(58)
-            if pad != "" { out = out ~ " " }
+
+    if v != i32 {
+        for k2, item2 in v {
+            if !is_first { out = out ~ rune(44) }
+            is_first = false
+            if pad != "" { out = out ~ "\n" ~ json_repeat(pad, level + 1) }
+            if is_obj {
+                out = out ~ json_quote(string(k2)) ~ rune(58)
+                if pad != "" { out = out ~ " " }
+            }
+            out = out ~ json_encode(item2, pad, level + 1)
         }
-        out = out ~ json_encode(item2, pad, level + 1)
     }
     if pad != "" { out = out ~ "\n" ~ json_repeat(pad, level) }
     out = out ~ rune(close_code)
