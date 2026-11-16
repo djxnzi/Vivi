@@ -354,13 +354,15 @@ static Value eval_math(TokenType op, Value l, Value r) {
         case TOK_CARET:
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
             return with_type(make_int(lc.as.i ^ rc.as.i), ity);
-        case TOK_SHL:
+        case TOK_SHL: {
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
-            return with_type(make_int(lc.as.i << rc.as.i), ity);
-        case TOK_SHR:
+            uint64_t shifted = static_cast<uint64_t>(lc.as.i) << (static_cast<uint64_t>(rc.as.i) & 63);
+            return with_type(make_int(static_cast<long int>(shifted)), ity);
+        }
+        case TOK_SHR: {
             if (!both_int) { print_err("bitwise_int_only"); return make_null(); }
-            return with_type(make_int(lc.as.i >> rc.as.i), ity);
-
+            return with_type(make_int(lc.as.i >> (rc.as.i & 63)), ity);
+        }
         default:
             print_err("unhandled_math_op", (int)op);
             return make_null();
