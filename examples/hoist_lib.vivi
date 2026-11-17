@@ -1,0 +1,6 @@
+a :: 1
+b :: a + 1
+sq :: (n) { return n * n }
+enum Dir { Up, Down }
+
+//just some logic to test.

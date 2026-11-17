@@ -1,0 +1,10 @@
+// everything below is used BEFORE the import line, so this only works if :: hoists across imports hopefully it does as i write this :3
+c :: b + 1
+r :: sq(4)
+d :: .Down
+
+#import "hoist_lib.vivi"
+
+println("c = " ~ c)
+println("r = " ~ r)
+println("d = " ~ d)

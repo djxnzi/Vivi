@@ -1,3 +1,4 @@
+#include <map>
 static std::string resolve_import(const std::string &path) {
     if (path.find('.') == std::string::npos && path.find('/') == std::string::npos) {
         std::string mod = path;
@@ -8,6 +9,46 @@ static std::string resolve_import(const std::string &path) {
     }
     fs::path rel = fs::path(current_file).parent_path() / path;
     return fs::exists(rel) ? rel.string() : path;
+}
+
+static std::map<std::string, ImportUnit> import_units;
+
+static ImportUnit* load_import_unit(const std::string &path, const std::string &file_path, bool report) {
+    auto it = import_units.find(file_path);
+    if (it != import_units.end()) return &it->second;
+
+    std::string source;
+    if (!read_file(file_path.c_str(), source)) {
+        if (report) print_err("cant_find_import", path.c_str());
+        return nullptr;
+    }
+    char *heap_source = (char*)arena_alloc((int)source.length() + 1);
+    memcpy(heap_source, source.c_str(), source.length() + 1);
+    char *heap_path = (char*)arena_alloc((int)file_path.length() + 1);
+    memcpy(heap_path, file_path.c_str(), file_path.length() + 1);
+
+    const char *saved_file = current_file;
+    const char *saved_source = program_source;
+    current_file = heap_path;
+    program_source = heap_source;
+
+    Lexer lx = { heap_source, heap_source, 1, 1 };
+    Parser p = {};
+    p.lx = &lx;
+    p.had_error = false;
+    p.lookahead_count = 0;
+    parser_advance(&p);
+    AstNode *prog = parse_program(&p);
+    bool bad = p.had_error;
+    if (bad && report) print_err("import_parse_err", path.c_str());
+
+    current_file = saved_file;
+    program_source = saved_source;
+    if (bad) return nullptr;
+
+    ImportUnit &u = import_units[file_path];
+    u = { prog, heap_path, heap_source };
+    return &u;
 }
 
 
@@ -26,6 +67,20 @@ static AstNode* exec_stmt(AstNode *node) {
                 if (existing && existing->is_const) {
                     return nullptr;
                 }
+            }
+
+            if (!should_namespace) {
+                ImportUnit *u = load_import_unit(path, file_path, true);
+                if (!u) return nullptr;
+                const char *saved_file = current_file;
+                const char *saved_source = program_source;
+                current_file = u->path;
+                program_source = u->source;
+                for (int i = 0; i < u->program->stmt_count; i++)
+                    exec_stmt(u->program->stmts[i]);
+                current_file = saved_file;
+                program_source = saved_source;
+                return nullptr;
             }
 
             std::string source;
@@ -54,15 +109,6 @@ static AstNode* exec_stmt(AstNode *node) {
             AstNode *import_program = parse_program(&import_p);
             if (import_p.had_error) {
                 print_err("import_parse_err", path.c_str());
-                current_file = saved_file;
-                program_source = saved_source;
-                return nullptr;
-            }
-
-            if (!should_namespace) {
-                for (int i = 0; i < import_program->stmt_count; i++) {
-                    exec_stmt(import_program->stmts[i]);
-                }
                 current_file = saved_file;
                 program_source = saved_source;
                 return nullptr;

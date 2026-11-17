@@ -1,3 +1,8 @@
+#include <set>
+#include <map>
+static std::set<std::string> pt_import_done;
+static std::map<AstNode*, ImportUnit*> pt_node_unit;
+
 static void pt_declare_name(const char *name, int len, bool bleeds) {
     EnvEntry *existing = env_find(pt_check_env, name, len);
     if (existing && existing->value.type == ValueType::Fn && ((ObjFn*)existing->value.as.obj)->is_native) {
@@ -126,6 +131,34 @@ static void pt_check_expr(AstNode *e) {
         default:
             break;
     }
+}
+
+static std::set<std::string> pt_check_import_active;
+
+static void pt_declare_import(AstNode *imp) {
+    if (imp->alias) { pt_declare_name(imp->alias, imp->alias_len); return; }
+    std::string path(imp->path, (size_t)imp->path_len);
+    std::string file_path = resolve_import(path);
+    if (pt_check_import_active.count(file_path)) return;
+    ImportUnit *u = load_import_unit(path, file_path, false);
+    if (!u) return;
+    pt_check_import_active.insert(file_path);
+    const char *sf = current_file, *ss = program_source;
+    current_file = u->path;
+    program_source = u->source;
+    for (int i = 0; i < u->program->stmt_count; i++) {
+        AstNode *inner = u->program->stmts[i];
+        if (inner->is_proctime) continue;   // already defined by run_proctime
+        switch (inner->type) {
+            case IMMUT_DECL: case MUT_DECL: case FN_DECL: case STRUCT_DECL: case ENUM_DECL:
+                pt_declare_name(inner->name, inner->len); break;
+            case IMPORT: pt_declare_import(inner); break;
+            default: break;
+        }
+    }
+    current_file = sf;
+    program_source = ss;
+    pt_check_import_active.erase(file_path);
 }
 
 static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
@@ -302,41 +335,33 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
             break;
 
         case IMPORT: {
-            if (!checking) break;
+            if (!checking) {
+                if (stmt->alias) break;
+                std::string path(stmt->path, (size_t)stmt->path_len);
+                std::string file_path = resolve_import(path);
+                if (pt_import_done.count(file_path)) break;
+                pt_import_done.insert(file_path);
+
+                ImportUnit *u = load_import_unit(path, file_path, false);
+                if (!u) break;
+                const char *sf = current_file, *ss = program_source;
+                current_file = u->path;
+                program_source = u->source;
+                for (int i = 0; i < u->program->stmt_count; i++) {
+                    pt_node_unit[u->program->stmts[i]] = u;
+                    pt_walk_stmt(u->program->stmts[i], nullptr, false);
+                }
+                current_file = sf;
+                program_source = ss;
+                break;
+            }
 
             if (stmt->alias) {
                 pt_declare_name(stmt->alias, stmt->alias_len);
                 break;
             }
 
-            std::string path(stmt->path, (size_t)stmt->path_len);
-            std::string import_path = resolve_import(path);
-            std::string source;
-            if (!read_file(import_path.c_str(), source)) break;
-            char *heap_source = (char*)arena_alloc((int)source.length() + 1);
-            memcpy(heap_source, source.c_str(), source.length() + 1);
-
-            Lexer import_lx = { heap_source, heap_source, 1, 1 };
-            Parser import_p = {};
-            import_p.lx = &import_lx;
-            import_p.had_error = false;
-            import_p.lookahead_count = 0;
-            parser_advance(&import_p);
-            AstNode *import_program = parse_program(&import_p);
-            if (import_p.had_error) break;
-
-            for (int i = 0; i < import_program->stmt_count; i++) {
-                AstNode *inner = import_program->stmts[i];
-                const char *name = nullptr; int len = 0;
-                switch (inner->type) {
-                    case IMMUT_DECL: case MUT_DECL: name = inner->name; len = inner->len; break;
-                    case FN_DECL:     name = inner->name; len = inner->len; break;
-                    case STRUCT_DECL: name = inner->name; len = inner->len; break;
-                    case ENUM_DECL:   name = inner->name; len = inner->len; break;
-                    default: break;
-                }
-                if (name) pt_declare_name(name, len);
-            }
+            pt_declare_import(stmt);
             break;
         }
 
@@ -424,7 +449,15 @@ static void run_proctime(AstNode *program) {
         size_t entry_size = 0;
         program_output = open_memstream(&entry_buf, &entry_size);
         int errors_before = error_count;
+        const char *sf = current_file, *ss = program_source;
+        auto uit = pt_node_unit.find(order[i]);
+        if (uit != pt_node_unit.end()) {
+            current_file = uit->second->path;
+            program_source = uit->second->source;
+        }
         exec_stmt(order[i]);
+        current_file = sf;
+        program_source = ss;
         bool keep;
         if (order[i]->type == TRY_STMT) {
             keep = error_count == errors_before;
