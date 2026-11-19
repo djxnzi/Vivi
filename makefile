@@ -42,7 +42,7 @@ install:
 	@cmp -s build/vivi $(DESTDIR)$(PREFIX)/bin/vivi || { echo "Installation failed"; exit 1; }
 	@echo "Vivi installed successfully."
 	@echo
-	@$(DESTDIR)$(PREFIX)/bin/vivi --version
+	@$(DESTDIR)$(PREFIX)/bin/vivi -v
 
 uninstall:
 	@read -p "Are you sure you want to uninstall vivi? [y/N] " confirm; \
