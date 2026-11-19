@@ -20,7 +20,7 @@ println("\n")
 
 // ANSI colors and escape codes!
 println("[Escape Codes]")
-println("You can use ansi escape codes, thanks xnasi!")
+println("You can use ansi escape codes, thanks xansi!")
 println(bold("bold text"))
 println(dim("dim text"))
 println(italic("italic text"))
