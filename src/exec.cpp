@@ -7,15 +7,15 @@ static std::string resolve_import(const std::string &path) {
         }
         return vivi.lib_dir + "/core/" + mod + ".vivi";
     }
-    fs::path rel = fs::path(current_file).parent_path() / path;
-    return fs::exists(rel) ? rel.string() : path;
+    fs::path rel = (fs::path(current_file).parent_path() / path).lexically_normal();
+    return fs::exists(rel) ? rel.string() : fs::path(path).lexically_normal().string();
 }
 
 static std::map<std::string, ImportUnit> import_units;
 
 static ImportUnit* load_import_unit(const std::string &path, const std::string &file_path, bool report) {
     auto it = import_units.find(file_path);
-    if (it != import_units.end()) return &it->second;
+    if (it != import_units.end()) return it->second.program ? &it->second : nullptr;
 
     std::string source;
     if (!read_file(file_path.c_str(), source)) {
@@ -44,7 +44,11 @@ static ImportUnit* load_import_unit(const std::string &path, const std::string &
 
     current_file = saved_file;
     program_source = saved_source;
-    if (bad) return nullptr;
+
+    if (bad) {
+        import_units[file_path] = { nullptr, heap_path, heap_source };
+        return nullptr;
+    }
 
     ImportUnit &u = import_units[file_path];
     u = { prog, heap_path, heap_source };
@@ -72,6 +76,8 @@ static AstNode* exec_stmt(AstNode *node) {
             if (!should_namespace) {
                 ImportUnit *u = load_import_unit(path, file_path, true);
                 if (!u) return nullptr;
+                if (u->program->is_proctime) return nullptr;
+                u->program->is_proctime = true;
                 const char *saved_file = current_file;
                 const char *saved_source = program_source;
                 current_file = u->path;
