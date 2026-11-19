@@ -22,9 +22,9 @@ static ImportUnit* load_import_unit(const std::string &path, const std::string &
         if (report) print_err("cant_find_import", path.c_str());
         return nullptr;
     }
-    char *heap_source = (char*)arena_alloc((int)source.length() + 1);
+    char *heap_source = (char*)arena_alloc((int)source.length() + 1, &g_ast_arena);
     memcpy(heap_source, source.c_str(), source.length() + 1);
-    char *heap_path = (char*)arena_alloc((int)file_path.length() + 1);
+    char *heap_path = (char*)arena_alloc((int)file_path.length() + 1, &g_ast_arena);
     memcpy(heap_path, file_path.c_str(), file_path.length() + 1);
 
     const char *saved_file = current_file;
@@ -89,10 +89,10 @@ static AstNode* exec_stmt(AstNode *node) {
                 return nullptr;
             }
 
-            char *heap_source = (char*)arena_alloc((int)source.length() + 1);
+            char *heap_source = (char*)arena_alloc((int)source.length() + 1, &g_ast_arena);
             memcpy(heap_source, source.c_str(), source.length() + 1);
 
-            char *heap_path = (char*)arena_alloc((int)file_path.length() + 1);
+            char *heap_path = (char*)arena_alloc((int)file_path.length() + 1, &g_ast_arena);
             memcpy(heap_path, file_path.c_str(), file_path.length() + 1);
 
             const char *saved_file = current_file;
@@ -174,6 +174,21 @@ static AstNode* exec_stmt(AstNode *node) {
                 const char *name = target->name;
                 int len = target->len;
 
+                if (node->type_tok == TOK_ASSIGN) {
+                    Value v = a ? a->items[i] : s->fields[i].value;
+                    EnvEntry *entry = env_find(global_env, name, len);
+                    if (entry && entry->type_annotation) {
+                        Value coerced;
+                        if (!value_matches_type(entry->type_annotation, v, &coerced)) {
+                            err_type_mismatch(entry->type_annotation, v);
+                            return nullptr;
+                        }
+                        v = coerced;
+                    }
+                    env_assign(global_env, name, len, v);
+                    continue;
+                }
+
                 if (node->is_static && target->static_slot) {
                     ObjVar *box = (ObjVar*)target->static_slot;
                     env_define(global_env, name, len, box->value, is_const, is_const, false, target->static_slot);
@@ -199,10 +214,10 @@ static AstNode* exec_stmt(AstNode *node) {
 
                 void *box = nullptr;
                 if (node->is_static) {
-                    ObjVar *ov = (ObjVar*)arena_alloc(sizeof(ObjVar));
+                    ObjVar *ov = (ObjVar*)value_alloc(sizeof(ObjVar));
                     ov->obj.type = v.type;
                     ov->obj.refcount = 0;
-                    ov->value = v;
+                    ov->value = v = value_copy(v);
                     target->static_slot = ov;
                     box = target->static_slot;
                 }
@@ -244,10 +259,28 @@ static AstNode* exec_stmt(AstNode *node) {
             } else if (is_ext_annotation(type_annotation)) {
                 v = make_ext_asset(node->value);
             } else {
-                v = eval_expr(node->value);
+                if (node->value->type == STRUCT_LIT) node->value->type_tok = node->type_tok == TOK_FLAGS ? TOK_FLAGS : TOK_ENUM;
+                v = eval_expected(node->value, type_annotation);
             }
 
-            if (type_annotation && !is_ext_annotation(type_annotation) && !node->type_size) {
+            if (node->value && node->value->type == STRUCT_LIT && v.type == ValueType::Struct) {
+                if (!enum_fields(node, (ObjStruct*)v.as.obj)) return nullptr;
+            }
+
+            ValueType field_vt;
+            if (type_annotation && type_annotation->type == IDENT && v.type == ValueType::Struct
+                && ident_is_type_name(type_annotation->name, type_annotation->len, &field_vt)
+                && field_vt != ValueType::Struct && field_vt != ValueType::Array) {
+                ObjStruct *s = (ObjStruct*)v.as.obj;
+                for (int i = 0; i < s->count; i++) {
+                    Value coerced;
+                    if (!value_matches_type(type_annotation, s->fields[i].value, &coerced)) {
+                        err_type_mismatch(type_annotation, s->fields[i].value);
+                        return nullptr;
+                    }
+                    s->fields[i].value = coerced;
+                }
+            } else if (type_annotation && !is_ext_annotation(type_annotation) && !node->type_size) {
                 Value coerced;
                 if (!value_matches_type(type_annotation, v, &coerced)) {
                     err_type_mismatch(type_annotation, v);
@@ -271,7 +304,7 @@ static AstNode* exec_stmt(AstNode *node) {
                 a->count = a->capacity = n;
                 for (int i = 0; i < n; i++) {
                     a->keys[i]  = make_null();
-                    a->items[i] = value_copy(v);
+                    a->items[i] = value_copy(v, false);
                 }
                 v.type = ValueType::Array;
                 v.as.obj = (Obj*)a;
@@ -279,10 +312,10 @@ static AstNode* exec_stmt(AstNode *node) {
 
             void *box = nullptr;
             if (node->is_static) {
-                ObjVar *ov = (ObjVar*)arena_alloc(sizeof(ObjVar));
+                ObjVar *ov = (ObjVar*)value_alloc(sizeof(ObjVar));
                 ov->obj.type = v.type;
                 ov->obj.refcount = 0;
-                ov->value = v;
+                ov->value = v = value_copy(v);
                 node->static_slot = ov;
                 box = node->static_slot;
             }
@@ -308,6 +341,7 @@ static AstNode* exec_stmt(AstNode *node) {
                 TokenType op = node->op;
                 Value rhs = eval_expr(node->value), result = rhs;
                 if (op != TOK_ASSIGN) result = assign_op_eval(op, *slot, rhs);
+                value_drop(*slot);
                 *slot = value_copy(result);
                 return nullptr;
             }
@@ -327,7 +361,8 @@ static AstNode* exec_stmt(AstNode *node) {
                 unregister_method(name, len);
             }
 
-            Value rhs = eval_expr(node->value);
+            EnvEntry *target_entry = env_find(global_env, name, len);
+            Value rhs = eval_expected(node->value, target_entry ? target_entry->type_annotation : nullptr);
             Value result = rhs;
 
             if (op != TOK_ASSIGN) {
@@ -367,7 +402,11 @@ static AstNode* exec_stmt(AstNode *node) {
 
             int write = count_before;
             for (int i = count_before; i < env->count; i++) {
-                if (!env->entries[i].is_local) env->entries[write++] = env->entries[i];
+                if (!env->entries[i].is_local) {
+                    env->entries[write++] = env->entries[i];
+                } else if (!env->entries[i].borrowed && !env->entries[i].static_box) {
+                    value_drop(env->entries[i].value);
+                }
             }
             env->count = write;
 
@@ -393,7 +432,8 @@ static AstNode* exec_stmt(AstNode *node) {
             frame.var_count = 0;
             loop_stack_push(frame);
 
-            while (is_truthy(eval_expr(node->cond))) {
+            Scope scope = scope_open();
+            while (scope_reset(&scope), is_truthy(eval_expr(node->cond))) {
                 AstNode *signal = exec_stmt(node->body);
                 if (signal) {
                     if (signal->type == BREAK_STMT) break;
@@ -415,7 +455,8 @@ static AstNode* exec_stmt(AstNode *node) {
 
             exec_stmt(node->init);
 
-            while (is_truthy(eval_expr(node->cond))) {
+            Scope scope = scope_open();
+            while (scope_reset(&scope), is_truthy(eval_expr(node->cond))) {
                 AstNode *signal = exec_stmt(node->body);
                 if (signal) {
                     if (signal->type == BREAK_STMT) break;
@@ -448,12 +489,11 @@ static AstNode* exec_stmt(AstNode *node) {
                     hi = end_v.as.i;
                 }
 
-                Enum *en = (!range && node->iterable->type == IDENT) ? find_enum_decl(node->iterable->name, node->iterable->len) : nullptr;
-                Value iterable = (range || en) ? make_null() : eval_expr(node->iterable);
+                Value iterable = range ? make_null() : eval_expr(node->iterable);
                 ObjArray  *arr = (iterable.type == ValueType::Array)  ? (ObjArray*)iterable.as.obj  : nullptr;
                 ObjStruct *st  = (iterable.type == ValueType::Struct) ? (ObjStruct*)iterable.as.obj : nullptr;
                 ObjStr    *str = (iterable.type == ValueType::Str || iterable.type == ValueType::Rune) ? (ObjStr*)iterable.as.obj : nullptr;
-                if (!range && !en && !arr && !st && !str) { print_err("for_in"); return nullptr; }
+                if (!range && !arr && !st && !str) { print_err("for_in"); return nullptr; }
 
                 // capture outer values
                 Value outer_i = get_implicit("i"), outer_ix = get_implicit("ix");
@@ -472,10 +512,11 @@ static AstNode* exec_stmt(AstNode *node) {
                 loop_stack_push(frame);
 
                 AstNode *result = nullptr;
-                for (long k = 0; k < (range ? hi - lo + 1 : en ? en->decl->variant_count : arr ? arr->count : st ? st->count : str->len); k++) {
+                Scope scope = scope_open();
+                for (long k = 0; k < (range ? hi - lo + 1 : arr ? arr->count : st ? st->count : str->len); k++) {
+                    scope_reset(&scope);
                     Value made = range ? make_int(lo + k) : str ? make_rune(str->chars + k, 1) : make_null();
-                    Value *item = en  ? &en->variant_values[k]
-                                : arr ? &arr->items[k]
+                    Value *item = arr ? &arr->items[k]
                                 : st  ? &st->fields[k].value
                                 :       &made;
 
@@ -484,8 +525,16 @@ static AstNode* exec_stmt(AstNode *node) {
                     AstNode *signal = exec_stmt(node->body);
 
                     // write back
-                    if (arr && k < arr->count) arr->items[k] = value_copy(get_implicit("ix"));
-                    if (st  && k < st->count)  st->fields[k].value = value_copy(get_implicit("ix"));
+                    if (arr && k < arr->count) {
+                        Value ix = value_copy(get_implicit("ix"), arr->obj.refcount);
+                        value_drop(arr->items[k]);
+                        arr->items[k] = ix;
+                    }
+                    if (st && k < st->count && !(node->iterable->type == IDENT && names_struct(node->iterable->name, node->iterable->len))) {
+                        Value ix = value_copy(get_implicit("ix"), st->obj.refcount);
+                        value_drop(st->fields[k].value);
+                        st->fields[k].value = ix;
+                    }
 
                     if (signal) {
                         if (signal->type == BREAK_STMT) break;
@@ -522,7 +571,9 @@ static AstNode* exec_stmt(AstNode *node) {
                     loop_stack_count--;
                     return nullptr;
                 }
+                Scope scope = scope_open();
                 for (long i = start_v.as.i; i <= end_v.as.i; i++) {
+                    scope_reset(&scope);
                     env_define(global_env, node->key_name, node->key_len, make_int(i), false);
                     AstNode *signal = exec_stmt(node->body);
                     if (signal) {
@@ -536,36 +587,13 @@ static AstNode* exec_stmt(AstNode *node) {
                 return nullptr;
             }
 
-            if (node->iterable->type == IDENT) {
-                Enum *en = find_enum_decl(node->iterable->name, node->iterable->len);
-                if (en) {
-                    AstNode *d = en->decl;
-                    for (int i = 0; i < d->variant_count; i++) {
-                        if (single) {
-                            env_define(global_env, node->key_name, node->key_len, en->variant_values[i], false);
-                        } else {
-                            Value key_val = make_str(d->variants[i]->name, d->variants[i]->len);
-                            env_define(global_env, node->key_name, node->key_len, key_val, false);
-                            env_define(global_env, node->val_name, node->val_len, en->variant_values[i], false);
-                        }
-                        AstNode *signal = exec_stmt(node->body);
-                        if (signal) {
-                            if (signal->type == BREAK_STMT) break;
-                            if (signal->type == CONTINUE_STMT) continue;
-                            loop_stack_count--;
-                            return signal;
-                        }
-                    }
-                    loop_stack_count--;
-                    return nullptr;
-                }
-            }
-
             Value iterable = eval_expr(node->iterable);
 
             if (iterable.type == ValueType::Struct) {
                 ObjStruct *s = (ObjStruct*)iterable.as.obj;
+                Scope scope = scope_open();
                 for (int i = 0; i < s->count; i++) {
+                    scope_reset(&scope);
                     if (single) {
                         env_define(global_env, node->key_name, node->key_len, s->fields[i].value, false);
                     } else {
@@ -587,7 +615,9 @@ static AstNode* exec_stmt(AstNode *node) {
 
             if (iterable.type == ValueType::Str || iterable.type == ValueType::Rune) {
                 ObjStr *str = (ObjStr*)iterable.as.obj;
+                Scope scope = scope_open();
                 for (int i = 0; i < str->len; i++) {
+                    scope_reset(&scope);
                     Value rune = make_rune(str->chars + i, 1);
                     if (single) {
                         env_define(global_env, node->key_name, node->key_len, rune, false);
@@ -614,7 +644,10 @@ static AstNode* exec_stmt(AstNode *node) {
             }
             ObjArray *a = (ObjArray*)iterable.as.obj;
             long seen = 0;
+
+            Scope scope = scope_open();
             for (int i = 0; i < a->count; i++) {
+                scope_reset(&scope);
                 if (single) {
                     env_define(global_env, node->key_name, node->key_len, a->items[i], false);
                 } else {
@@ -636,6 +669,9 @@ static AstNode* exec_stmt(AstNode *node) {
 
         case SWITCH_STMT: {
             Value scrutinee = eval_expr(node->scrutinee);
+
+            EnvEntry *subject = (node->scrutinee->type == IDENT) ? env_find(global_env, node->scrutinee->name, node->scrutinee->len) : nullptr;
+
             bool guard_ok = true;
 
             if (node->guard) {
@@ -661,7 +697,7 @@ static AstNode* exec_stmt(AstNode *node) {
                     default_index = i;
                     continue;
                 }
-                if (guard_ok && label_matches(c->label, scrutinee)) {
+                if (guard_ok && label_matches(c->label, scrutinee, subject ? subject->type_annotation : nullptr)) {
                     start_index = i;
                     break;
                 }
@@ -728,12 +764,6 @@ static AstNode* exec_stmt(AstNode *node) {
             return nullptr;
         }
 
-        case ENUM_DECL: {
-            if (node->is_proctime) return nullptr;
-            register_enum_decl(node);
-            return nullptr;
-        }
-
         case TRY_STMT: {
             if (node->is_proctime) return nullptr;
             Env *saved_env = global_env;
@@ -774,7 +804,7 @@ static AstNode* exec_stmt(AstNode *node) {
                 exec_stmt(val);
                 return_value = eval_expr(val->target);
             } else {
-                return_value = val ? eval_expr(val) : make_null();
+                return_value = val ? eval_expected(val, return_type_expected) : make_null();
             }
             return node;
         }
@@ -783,8 +813,9 @@ static AstNode* exec_stmt(AstNode *node) {
             Env *env = global_env;
             if (env->defer_count == env->defer_capacity) {
                 int new_cap = env->defer_capacity < 4 ? 4 : env->defer_capacity * 2;
-                AstNode **new_defers = (AstNode**)arena_alloc(sizeof(AstNode*) * new_cap);
+                AstNode **new_defers = (AstNode**)value_alloc(sizeof(AstNode*) * new_cap);
                 for (int i = 0; i < env->defer_count; i++) new_defers[i] = env->defers[i];
+                if (env->defers) pending_push(env->defers, sizeof(AstNode*) * env->defer_capacity, epoch);
                 env->defers = new_defers;
                 env->defer_capacity = new_cap;
             }

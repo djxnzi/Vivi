@@ -7,7 +7,9 @@ static void bind_implicits(Env *env, Value *self, bool variadic, Value *tail, in
             continue;
         }
         env_define(env, implicit.name, implicit.len, make_null(), false);
-        env_find_local(env, implicit.name, implicit.len)->value = v;
+        EnvEntry *e = env_find_local(env, implicit.name, implicit.len);
+        e->value = v;
+        e->borrowed = (implicit.make != implicit_ix);
     }
 }
 

@@ -65,7 +65,6 @@ static AstNode* parse_fn(Parser *p);
 static AstNode* parse_leading_return(Parser *p);
 static AstNode* parse_single_return(Parser *p);
 static AstNode* parse_struct_decl(Parser *p);
-static AstNode* parse_enum_decl(Parser *p);
 static AstNode* parse_type_block(Parser *p);
 
 // Stmt
@@ -80,6 +79,7 @@ static AstNode* parse_if_branch(Parser *p);
 static AstNode* parse_while_stmt(Parser *p);
 static AstNode* parse_switch_stmt(Parser *p);
 static AstNode* parse_switch_case(Parser *p);
+static AstNode* parse_switch_body(Parser *p, AstNode *scrutinee, int line, int col);
 static AstNode* parse_for_init_decl(Parser *p);
 static AstNode* parse_for_in(Parser *p, int line, int col, bool has_parens);
 static AstNode* parse_for_cstyle(Parser *p, int line, int col, bool has_parens);

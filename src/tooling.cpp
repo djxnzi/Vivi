@@ -378,24 +378,6 @@ void print_ast(AstNode *node, int depth) {
             }
             break;
 
-        case ENUM_DECL:
-            printf("EnumDecl %.*s (%d variants)\n",
-                node->len, node->name,
-                node->variant_count);
-            print_indent(depth + 1); printf("variants:\n");
-            for (int i = 0; i < node->variant_count; i++) {
-                AstNode *v = node->variants[i];
-                print_indent(depth + 2);
-                printf("EnumVariant %.*s\n", v->len, v->name);
-                if (v->value) {
-                    print_indent(depth + 3); printf("value:\n");
-                    print_ast(v->value, depth + 4);
-                } else {
-                    print_indent(depth + 3); printf("(auto-assigned)\n");
-                }
-            }
-            break;
-
         case TYPE_BLOCK:
             printf("TypeBlock %s (%d decls)\n",
                 token_name(node->type_tok),

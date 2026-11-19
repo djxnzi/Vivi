@@ -44,4 +44,5 @@ static const struct { const char *name; int len; ValueType vt; } type_names[] = 
     {"f64", 3, ValueType::Float},
     {"array", 5, ValueType::Array},
     {"struct", 6, ValueType::Struct},
+    {"enum", 4, ValueType::Struct},
 };

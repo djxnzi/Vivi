@@ -359,7 +359,7 @@ main := () {
     print(esc ~ "[2J")
     draw_static()
 
-    last := _clock()
+    last := _timestamp()
     start := last
     while !over {
         // read pending keys, at most MAX_KEYS per frame
@@ -379,7 +379,7 @@ main := () {
 
         // gravity gets faster every 10 lines, floor at 0.08s
         delay := max(0.08, 0.5 - 0.04 * (lines / 10))
-        now_t := _clock()
+        now_t := _timestamp()
         if now_t - last >= delay {
             last = now_t
             if !try_move(0, 1) { land() }

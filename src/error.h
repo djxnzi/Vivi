@@ -8,6 +8,7 @@ static bool is_internal_error(const char *code);
 static void print_source_line(FILE *out, const char *src, int target_line, int col, const char *label = nullptr, int label_len = 0);
 static void print_breadcrumb(FILE *dest, Env *env);
 static void write_error(FILE *dest, const char *msg, int n, const char *code, const char *hint);
+static const char* value_type_label(ValueType t);
 static void err_type_mismatch(AstNode *annotation, Value v);
 static void build_caught_string(const char *heap, int n);
 static void print_traceback(int err_line, int err_col, FILE *dest = stderr);

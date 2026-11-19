@@ -11,7 +11,16 @@ void Vivi::processFlags(int argc, char* argv[], std::string& outScriptPath, cons
     }
 
     if (argc == 1) {
-        printf("Vivi Usage: vivi <path> --args\n");
+        printf("\n");
+printf(R"(Welcome to Vivi!
+
+Usage:
+    vivi <path>                 Accepts a folder, a *.vivi file, or . for the current directory.
+    vivi <path> -lex            Prints out the lexical analysis.
+    vivi <path> -ast            Prints out the AST tree.
+    vivi -v                     Prints out Vivi's version.
+)");
+        printf("\n");
     }
 
     if (hasScript) {
@@ -74,21 +83,22 @@ void Vivi::processFlags(int argc, char* argv[], std::string& outScriptPath, cons
         std::string value = (eqPos != std::string::npos) ? arg.substr(eqPos + 1) : "";
 
         switch (hash(key.c_str())) {
-            case hash("--version"):
+            case hash("-v"):
                 printf("Vivi is v%s\n\n", vivi.version);
                 break;
 
-            case hash("--lexer"): {
+            case hash("-lex"): {
                 if (!source.empty()) {
                     printf("Lexer output:\n\n");
                     print_lexer(source);
                 } else {
                     printf("Error: no source to lex.\n\n");
                 }
+                outScriptPath.clear();
                 break;
             }
 
-            case hash("--ast"): {
+            case hash("-ast"): {
                 if (!source.empty()) {
                     Lexer parse_lx = { source.c_str(), source.c_str(), 1, 1 };
                     Parser p = {};
@@ -109,6 +119,7 @@ void Vivi::processFlags(int argc, char* argv[], std::string& outScriptPath, cons
                 } else {
                     printf("Error: no source to parse.\n\n");
                 }
+                outScriptPath.clear();
                 break;
             }
 

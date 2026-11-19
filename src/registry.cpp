@@ -97,7 +97,17 @@ static AstNode* find_struct_decl(const char *name, int len) {
     return nullptr;
 }
 
-static bool label_matches(AstNode *label, Value scrutinee) {
+static bool names_struct(const char *name, int len) {
+    Value t;
+    if (find_struct_decl(name, len)) return true;
+    if (!env_get(global_env, name, len, &t) || t.type != ValueType::Struct) return false;
+    ObjStruct *s = (ObjStruct*)t.as.obj;
+    return (s->type_name_len == len && strncmp(s->type_name, name, len) == 0)
+        || (s->type_name_len == 6 && strncmp(s->type_name, "#flags", 6) == 0);
+}
+
+
+static bool label_matches(AstNode *label, Value scrutinee, AstNode *expect) {
     if (label->type == BINARY && label->op == TOK_SLICE) {
         Value lo = eval_expr(label->left);
         Value hi = eval_expr(label->right);
@@ -118,48 +128,50 @@ static bool label_matches(AstNode *label, Value scrutinee) {
             }
             return matches;
         }
-        AstNode *struct_decl = find_struct_decl(label->name, label->len);
-        if (struct_decl) {
+        if (names_struct(label->name, label->len)) {
             if (scrutinee.type != ValueType::Struct) return false;
             ObjStruct *s = (ObjStruct*)scrutinee.as.obj;
             return s->type_name && s->type_name_len == label->len &&
                 strncmp(s->type_name, label->name, label->len) == 0;
         }
     }
-    return values_equal(eval_expr(label), scrutinee);
+    return values_equal(eval_expected(label, expect), scrutinee);
 }
 
-// Enums
-static void register_enum_decl(AstNode *decl) {
-    int n = decl->variant_count;
-    Value *values = n ? (Value*)arena_alloc(sizeof(Value) * n) : nullptr;
-    Value prev = make_int(-1);
-    for (int i = 0; i < n; i++) {
-        AstNode *variant = decl->variants[i];
-        if (variant->value) {
-            values[i] = eval_expr(variant->value);
-        } else if (prev.type == ValueType::Int) {
-            values[i] = make_int(prev.as.i + 1);
-        } else {
-            print_err("enum_variant",
-                variant->len, variant->name);
-            values[i] = make_null();
-        }
-        prev = values[i];
+// Enumerated structs
+static bool enum_fields(AstNode *decl, ObjStruct *s) {
+    AstNode *lit = decl->value;
+    bool flags = (decl->type_tok == TOK_FLAGS);
+
+    bool enum_body = flags || decl->type_tok == TOK_ENUM || (decl->has_type_annotation && is_ident(decl->type_annotation, "enum"));
+    for (int i = 0; i < lit->count; i++) {
+        if (!lit->fields[i]->value) enum_body = true;
     }
 
-    enum_decls = (Enum*)grow_array(enum_decls, enum_decl_count, &enum_decl_capacity, sizeof(Enum), 8);
-    enum_decls[enum_decl_count].decl = decl;
-    enum_decls[enum_decl_count].variant_values = values;
-    enum_decl_count++;
-}
+    for (int i = 0; i < lit->count; i++) {
+        AstNode *field = lit->fields[i];
+        Value v = s->fields[i].value;
+        current_line = field->line;
+        current_col = field->col;
 
-static Enum* find_enum_decl(const char *name, int len) {
-    for (int i = 0; i < enum_decl_count; i++) {
-        AstNode *d = enum_decls[i].decl;
-        if (d->len == len && strncmp(d->name, name, len) == 0) {
-            return &enum_decls[i];
+        if (flags && field->value) {
+            print_err("flags_value", decl->len, decl->name);
+            return false;
+        }
+
+        if (!field->value && v.type == ValueType::Null) {
+            print_err("enum_variant", field->len, field->name);
+            return false;
+        }
+
+        if (enum_body && field->value && v.type != ValueType::Int) {
+            print_err("type_mismatch", 4, "enum", value_type_label(v.type));
+            return false;
         }
     }
-    return nullptr;
+
+    s->type_name = flags ? "#flags" : decl->name;
+    s->type_name_len = flags ? 6 : decl->len;
+    
+    return true;
 }

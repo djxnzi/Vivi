@@ -16,7 +16,7 @@ static AstNode* parse_primary(Parser *p) {
     if (match(p, TOK_STR_LIT)) {
         bool has_brace = false;
         for (int k = 0; k < p->previous.len; k++) {
-            if (p->previous.start[k] == '{') { has_brace = true; break; }
+            if (p->previous.start[k] == '\x01') { has_brace = true; break; }
         }
         if (has_brace) {
             return parse_interpolated_string(p->previous.start, p->previous.len, line, col);
@@ -150,6 +150,8 @@ static AstNode* parse_binary(Parser *p, Precedence min_prec) {
 
         if (!is_binary_op(op)) break;
 
+        if (op == TOK_EQ && p->no_fn_lit && peek_at(p, 1).type == TOK_LBRACE) break;
+
         Precedence prec = binary_precedence(op);
         if (prec < min_prec) break;
 
@@ -224,18 +226,35 @@ static AstNode* parse_brace_literal(Parser *p) {
     AstList fields;
     ast_list_init(&fields);
 
-    if (!check(p, TOK_RBRACE)) {
-        do {
-            int field_line = p->current.line, field_col = p->current.col;
-            expect(p, TOK_IDENT, "expected field name in struct literal");
-            const char *name = p->previous.start;
-            int name_len = p->previous.len;
+    if (check(p, TOK_DOT)) {
+        AstNode *set = parse_primary(p);
+        while (match(p, TOK_COMMA)) {
+            if (check(p, TOK_RBRACE)) break;
+            int l = p->previous.line, c = p->previous.col;
+            set = make_binary(TOK_PIPE, set, parse_primary(p), l, c);
+        }
+        expect(p, TOK_RBRACE, "expected '}' after flag set");
+        return set;
+    }
 
-            expect(p, TOK_COLON, "expected ':' after field name");
-            AstNode *value = parse_expression(p);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        int field_line = p->current.line, field_col = p->current.col;
 
-            ast_list_push(&fields, make_field(name, name_len, nullptr, value, field_line, field_col));
-        } while (match(p, TOK_COMMA));
+        AstNode *type_expr = nullptr;
+        if (at_type_annotation(p)) {
+            type_expr = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
+            parser_advance(p);
+        }
+
+        expect(p, TOK_IDENT, "expected field name in struct literal");
+        const char *name = p->previous.start;
+        int name_len = p->previous.len;
+
+        AstNode *value = nullptr;
+        if (match(p, TOK_COLON)) value = parse_expression(p);
+
+        ast_list_push(&fields, make_field(name, name_len, type_expr, value, field_line, field_col));
+        if (!match(p, TOK_COMMA)) break;
     }
 
     expect(p, TOK_RBRACE, "expected '}' after struct literal");
@@ -251,7 +270,7 @@ static AstNode* parse_interpolated_string(const char *text, int len, int line, i
     int seg_start = 0;
 
     while (i < len) {
-        if (text[i] == '{') {
+        if (text[i] == '\x01') {
             if (i > seg_start) {
                 AstNode *lit = make_str_lit(text + seg_start, i - seg_start, line, col);
                 result = result ? make_binary(TOK_TILDE, result, lit, line, col) : lit;
@@ -260,13 +279,13 @@ static AstNode* parse_interpolated_string(const char *text, int len, int line, i
             int depth = 1;
             int j = expr_start;
             while (j < len && depth > 0) {
-                if (text[j] == '{') depth++;
-                else if (text[j] == '}') depth--;
+                if (text[j] == '\x01') depth++;
+                else if (text[j] == '\x02') depth--;
                 if (depth > 0) j++;
             }
 
             int expr_len = j - expr_start;
-            char *expr_buf = (char*)arena_alloc(expr_len + 1);
+            char *expr_buf = (char*)arena_alloc(expr_len + 1, &g_ast_arena);
             memcpy(expr_buf, text + expr_start, expr_len);
             expr_buf[expr_len] = '\0';
 

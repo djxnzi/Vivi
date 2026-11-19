@@ -51,7 +51,7 @@ static Value* resolve_place(AstNode *node, bool create, bool *fresh) {
                 if (!array_locate(a, idx, &pos)) return nullptr;
                 if (pos < 0 && create && d == node->index_count - 1) {
                     array_needs_capacity(a, a->count + 1);
-                    a->keys[a->count] = value_copy(idx);
+                    a->keys[a->count] = value_copy(idx, a->obj.refcount);
                     a->items[a->count] = make_null();
                     pos = a->count++;
                     if (fresh) *fresh = true;
@@ -82,6 +82,7 @@ static Value assign_op_eval(TokenType op, Value old, Value rhs) {
 
 static void assign_apply(Value *slot, TokenType op, Value rhs, bool fresh) {
     if (op != TOK_ASSIGN && !fresh) rhs = assign_op_eval(op, *slot, rhs);
+    value_drop(*slot);
     *slot = value_copy(rhs);
 }
 
@@ -214,6 +215,17 @@ static Value eval_expr(AstNode *node) {
                 Value arg = eval_expr(node->args[0]);
                 return eval_typecast(s->chars, s->len, arg);
             }
+            if (callee.type == ValueType::Struct) {
+                Value made = value_copy(callee, false);
+                ObjStruct *s = (ObjStruct*)made.as.obj;
+                if (node->callee->type == IDENT) {
+                    s->type_name = node->callee->name;
+                    s->type_name_len = node->callee->len;
+                }
+                for (int i = 0; i < node->arg_count && i < s->count; i++)
+                    s->fields[i].value = eval_expr(node->args[i]);
+                return made;
+            }
             if (callee.type != ValueType::Fn) {
                 print_err("not_callable");
                 return make_null();
@@ -244,11 +256,16 @@ static Value eval_expr(AstNode *node) {
                 }
 
                 AstNode *ptype = (i < shape.param_count) ? shape.params[i]->type_expr : nullptr;
+
+                if (!ptype && i < shape.param_count && is_flagged(shape.params[i])) {
+                    ptype = shape.params[i];
+                }
+
                 if (arg->type == IDENT && ptype && ptype->type == UNARY && ptype->op == TOK_STAR) {
                     Value *slot = resolve_place(arg);
                     arg_values[w++] = slot ? make_int((long)slot) : make_null();
                 } else {
-                    arg_values[w++] = eval_expr(arg);
+                    arg_values[w++] = eval_expected(arg, ptype);
                 }
             }
 
@@ -315,7 +332,7 @@ static Value eval_expr(AstNode *node) {
                     type_operand = right; value_operand = left;
                 } else if (left->type == IDENT && find_struct_decl(left->name, left->len)) {
                     type_operand = left; value_operand = right; is_custom_type = true;
-                } else if (right->type == IDENT && find_struct_decl(right->name, right->len)) {
+                } else if (right->type == IDENT && names_struct(right->name, right->len)) {
                     type_operand = right; value_operand = left; is_custom_type = true;
                 }
 
@@ -332,7 +349,7 @@ static Value eval_expr(AstNode *node) {
                     } else if (v.type == ValueType::Fn) {
                         Value tv;
                         matches = env_get(global_env, type_operand->name, type_operand->len, &tv) &&
-                            tv.type == ValueType::Fn && tv.as.obj == v.as.obj;
+                            tv.type == ValueType::Fn && ((ObjFn*)tv.as.obj)->decl == ((ObjFn*)v.as.obj)->decl;
                     } else {
                         matches = (v.type == vt);
                         if (matches && (vt == ValueType::Int || vt == ValueType::Float)) {
@@ -342,6 +359,15 @@ static Value eval_expr(AstNode *node) {
                         }
                     }
                     return make_bool(op == TOK_EQ ? matches : !matches);
+                }
+                
+                AstNode *sel = (left->type == FIELD_ACCESS && !left->object) ? left
+                             : (right->type == FIELD_ACCESS && !right->object) ? right : nullptr;
+                if (sel) {
+                    AstNode *other = (sel == left) ? right : left;
+                    EnvEntry *e = (other->type == IDENT) ? env_find(global_env, other->name, other->len) : nullptr;
+                    bool eq = values_equal(eval_expected(sel, e ? e->type_annotation : nullptr), eval_expr(other));
+                    return make_bool(op == TOK_EQ ? eq : !eq);
                 }
             }
 
@@ -494,44 +520,29 @@ static Value eval_expr(AstNode *node) {
             int n = node->count;
             s->fields = n ? (StructField*)arena_alloc(sizeof(StructField) * n) : nullptr;
             s->count = s->capacity = n;
+            Env *outer = global_env, *fields = env_new(outer);
+            fields->loop_floor = outer->loop_floor;
             for (int i = 0; i < n; i++) {
                 AstNode *f = node->fields[i];
                 s->fields[i].name = f->name;
                 s->fields[i].len = f->len;
-                s->fields[i].value = eval_expr(f->value);
+                global_env = (f->value && f->value->type != FN_LIT) ? fields : outer;
+                s->fields[i].value = f->value ? eval_expr(f->value)
+                    : node->type_tok == TOK_FLAGS ? make_int(1L << i)
+                    : node->type_tok != TOK_ENUM ? make_null()
+                    : i == 0 ? make_int(0)
+                    : s->fields[i - 1].value.type == ValueType::Int ? make_int(s->fields[i - 1].value.as.i + 1)
+                    : make_null();
+                env_define(fields, f->name, f->len, s->fields[i].value, true);
             }
+            global_env = outer;
+            env_release(fields);
             Value v; v.type = ValueType::Struct; v.as.obj = (Obj*)s;
             return v;
         }
 
         case FIELD_ACCESS: {
-            if (!node->object || node->object->type == IDENT) {
-                Value found = make_null();
-                int hits = 0;
-                for (int e = 0; e < enum_decl_count; e++) {
-                    Enum *enum_ = &enum_decls[e];
-                    AstNode *d = enum_->decl;
-                    if (node->object && !(d->len == node->object->len && strncmp(d->name, node->object->name, d->len) == 0))
-                        continue;
-                    for (int i = 0; i < d->variant_count; i++) {
-                        AstNode *variant = d->variants[i];
-                        if (variant->len == node->len && strncmp(variant->name, node->field, node->len) == 0) {
-                            found = enum_->variant_values[i];
-                            hits++;
-                        }
-                    }
-                    if (node->object) {
-                        if (hits) return found;
-                        print_err("no_enum_variant", node->object->len, node->object->name, node->len, node->field);
-                        return make_null();
-                    }
-                }
-                if (!node->object) {
-                    if (hits == 1) return found;
-                    print_err(hits ? "selector_ambiguous" : "selector_variant", node->len, node->field);
-                    return make_null();
-                }
-            }
+            if (!node->object) return eval_expected(node, nullptr);
 
             Value obj = auto_deref(node->object, eval_expr(node->object));
             Value *slot = struct_field_slot(obj, node->field, node->len);
@@ -572,6 +583,62 @@ static Value eval_block_as_expr(AstNode *block) {
     return make_null();
 }
 
+static Value selector_search(AstNode *expr) {
+    Value found = make_null();
+    int matches = 0;
+    for (Env *env = global_env; env; env = env->parent) {
+        for (int i = 0; i < env->count; i++) {
+            EnvEntry *e = &env->entries[i];
+            if (e->value.type != ValueType::Struct || !names_struct(e->name, e->len)) continue;
+            Value *slot = struct_field_slot(e->value, expr->field, expr->len);
+            if (!slot) continue;
+            found = *slot;
+            matches++;
+        }
+    }
+    if (matches == 1) return found;
+    print_err(matches ? "selector_ambiguous" : "selector_variant", expr->len, expr->field);
+    return make_null();
+}
+
+static bool is_flagged(AstNode *param) {
+    Value t;
+    if (param->type_expr || !param->name || !env_get(global_env, param->name, param->len, &t)) return false;
+    if (t.type != ValueType::Struct) return false;
+    ObjStruct *s = (ObjStruct*)t.as.obj;
+    return s->type_name_len == 6 && strncmp(s->type_name, "#flags", 6) == 0;
+}
+
+static Value eval_expected(AstNode *expr, AstNode *type) {
+    if (expr->type == BINARY && expr->op == TOK_PIPE
+        && expr->right->type == FIELD_ACCESS && !expr->right->object) {
+        Value l = eval_expected(expr->left, type);
+        Value r = eval_expected(expr->right, type);
+        if (l.type == ValueType::Int && r.type == ValueType::Int)
+            return with_type(make_int(l.as.i | r.as.i), l.ty ? l.ty : r.ty);
+        return l.type != ValueType::Null ? l : r;
+    }
+    if (expr->type != FIELD_ACCESS || expr->object) return eval_expr(expr);
+
+    current_line = expr->line;
+    current_col = expr->col;
+
+    if (!type) return selector_search(expr);
+    Value t;
+
+    if ((type->type != IDENT && type->type != PARAM) || !env_get(global_env, type->name, type->len, &t)
+        || t.type != ValueType::Struct) {
+        print_err("selector_variant", expr->len, expr->field);
+        return make_null();
+    }
+    Value *slot = struct_field_slot(t, expr->field, expr->len);
+    if (!slot) {
+        print_err("no_field", expr->len, expr->field);
+        return make_null();
+    }
+    return *slot;
+}
+
 static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *self, int call_line, int call_col, Value *out_self) {
 
     if (fn->is_native) {
@@ -585,6 +652,8 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
     FnShape shape = get_fn_shape(fn->decl);
     AstNode **params = shape.params;
     int param_count = shape.param_count;
+
+    Scope scope = scope_open();
 
     Env *call_env = env_new(fn->closure);
     call_env->loop_floor = loop_stack_count;
@@ -615,7 +684,7 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
         }
     }
 
-    bind_implicits(call_env, self, vi >= 0, vi >= 0 ? arg_values + vi : nullptr, tail_count);
+    bind_implicits(call_env, self, true, vi >= 0 ? arg_values + vi : arg_values, vi >= 0 ? tail_count : arg_count);
 
     Env *saved = global_env;
     global_env = call_env;
@@ -638,6 +707,8 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
             pv = eval_expr(param->value);
         } else if (i < arg_count) {
             pv = arg_values[i];
+        } else if (is_flagged(param)) {
+            pv = make_int(0);
         } else {
             print_err("missing_arg", param->len, param->name);
             current_file = saved_file;
@@ -656,13 +727,18 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
         }
 
         env_define(call_env, param->name, param->len, pv, false);
+        env_set_type_annotation(call_env, param->name, param->len, param->type_expr);
     }
+
+    AstNode *saved_return_type = return_type_expected;
+    return_type_expected = shape.return_type;
     
     jmp_buf frame;
     jmp_buf *outer = error_handler;
     error_handler = &frame;
     if (setjmp(frame) != 0) {
         error_handler = outer;
+        return_type_expected = saved_return_type;
         current_file = saved_file;
         program_source = saved_source;
         global_env = saved;
@@ -670,6 +746,7 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
     }
     
     AstNode *signal = exec_stmt(shape.body);
+    return_type_expected = saved_return_type;
 
     bool returned_value = signal && signal->type == RETURN_STMT && signal->value;
     Value result = (signal && signal->type == RETURN_STMT) ? return_value : make_null();
@@ -719,6 +796,23 @@ static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *s
         frame->result = result;
         Value v; v.type = ValueType::Frame; v.as.obj = (Obj*)frame;
         result = v;
+    }
+
+    result = value_copy(result);
+    if (out_self && self) {
+        *out_self = value_copy(*out_self);
+    }
+    if (call_env->refcount > 1) {
+        for (int i = 0; i < call_env->count; i++) {
+            EnvEntry *e = &call_env->entries[i];
+            if (e->borrowed) { e->value = value_copy(e->value); e->borrowed = false; }
+        }
+    }
+    env_release(call_env);
+    scope_reset(&scope);
+    value_drop(result);
+    if (out_self && self) {
+        value_drop(*out_self);
     }
 
     return result;

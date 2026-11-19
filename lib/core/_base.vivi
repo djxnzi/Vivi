@@ -301,24 +301,15 @@ free := (ptr) {
     if size < 16 or size % 16 != 0 { panic("free(): invalid pointer or corrupted header") }
     _release(ptr, size)
 }
+
 // memcpy was gonna be changed but i litteraly could not find a reason to change it -Xansi
 memcpy := (dst, src, n) { _memcpy(dst, src, n) }
 
-timestamp := () {
-    return _clock()
-}
-
-traceback := () {
-    return _traceback()
-}
-
-rand := () {
-    return _rand()
-}
-
-seed := (i32 n) {
-    _seed(n)
-}
+timestamp := () { return _timestamp() }
+traceback := () { return _traceback() }
+seed := (i32 n) { _seed(n) }
+rand := () { return _rand() }
+sleep := (i32 n) { _sleep(n) }
 
 i32 hash := (string v) {
     h := 0
@@ -329,10 +320,6 @@ i32 hash := (string v) {
         i += 1
     }
     return h
-}
-
-sleep := (i32 n) {
-    _sleep(n)
 }
 
 // Methods

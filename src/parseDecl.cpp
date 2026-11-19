@@ -4,7 +4,8 @@ static AstNode* parse_decl(Parser *p) {
     AstNode *type_annotation = nullptr;
     AstNode *type_size = nullptr;
     bool is_unsized_array = false;
-    if (at_type_annotation(p) || (check(p, TOK_IDENT) && peek_at(p, 1).type == TOK_STAR)) {
+    if (at_type_annotation(p) || (check(p, TOK_IDENT) && peek_at(p, 1).type == TOK_STAR)
+        || (is_type_name_token(p->current) && (peek_at(p, 1).type == TOK_ENUM || peek_at(p, 1).type == TOK_STRUCT))) {
         type_annotation = make_ident(p->current.start, p->current.len, p->current.line, p->current.col);
         parser_advance(p);
         if (match(p, TOK_STAR)) {
@@ -18,6 +19,9 @@ static AstNode* parse_decl(Parser *p) {
             expect(p, TOK_RBRACKET, "expected ']' after array size");
         }
     }
+
+    bool typed_enum = match(p, TOK_ENUM);
+    if (!typed_enum) match(p, TOK_STRUCT);
 
     expect(p, TOK_IDENT, "expected identifier in declaration");
     bool has_type_annotation = (type_annotation != nullptr);
@@ -45,6 +49,9 @@ static AstNode* parse_decl(Parser *p) {
         : make_mut_decl(name, name_len, has_type_annotation, type_annotation, value, line, col);
     n->type_size = type_size;
     n->is_unsized_array = is_unsized_array;
+
+    if (typed_enum) n->type_tok = TOK_ENUM;
+
     return n;
 }
 
@@ -66,10 +73,14 @@ static AstNode* parse_destructure_decl(Parser *p) {
     } while (match(p, TOK_COMMA));
 
     bool is_immutable = false;
+    bool is_assign = false;
+
     if (match(p, TOK_MUT)) {
         is_immutable = false;
     } else if (match(p, TOK_IMMUT)) {
         is_immutable = true;
+    } else if (match(p, TOK_ASSIGN)) {
+        is_assign = true;
     } else {
         parser_error(p, "expected ':=' or '::' in destructuring declaration");
     }
@@ -83,7 +94,10 @@ static AstNode* parse_destructure_decl(Parser *p) {
 
     int count;
     AstNode **items = ast_list_finish(&targets, &count);
-    return make_destructure_decl(items, count, is_immutable, value, line, col);
+    AstNode *node = make_destructure_decl(items, count, is_immutable, value, line, col);
+    
+    if (is_assign) node->type_tok = TOK_ASSIGN;
+    return node;
 }
 
 static AstNode** parse_param_list(Parser *p, int *out_count) {
@@ -170,7 +184,7 @@ static AstNode* parse_leading_return(Parser *p) {
         expect(p, TOK_RBRACKET, "expected ']' after return type");
         return first;
     }
-    if (is_type_keyword(p->current.type) || is_type_name_token(p->current)
+    if (is_type_keyword(p->current.type) || is_type_name_token(p->current) || check(p, TOK_STRUCT)
         || (check(p, TOK_IDENT) && peek_at(p, 1).type == TOK_IDENT)) {
         return parse_single_return(p);
     }
@@ -271,34 +285,6 @@ static AstNode* parse_struct_decl(Parser *p) {
     return make_struct_decl(name, name_len, items, count, line, col);
 }
 
-static AstNode* parse_enum_decl(Parser *p) {
-    int line = p->current.line, col = p->current.col;
-    expect(p, TOK_ENUM, "expected 'enum'");
-    expect(p, TOK_IDENT, "expected enum name");
-    const char *name = p->previous.start;
-    int name_len = p->previous.len;
-    expect(p, TOK_LBRACE, "expected '{'");
-
-    AstList variants;
-    ast_list_init(&variants);
-    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-        int vline = p->current.line, vcol = p->current.col;
-        expect(p, TOK_IDENT, "expected enum variant name");
-        const char *vname = p->previous.start;
-        int vlen = p->previous.len;
-        AstNode *value = nullptr;
-        if (match(p, TOK_COLON)) {
-            value = parse_expression(p);
-        }
-        ast_list_push(&variants, make_field(vname, vlen, nullptr, value, vline, vcol));
-        if (!match(p, TOK_COMMA)) break;
-    }
-    expect(p, TOK_RBRACE, "expected '}'");
-    int count;
-    AstNode **items = ast_list_finish(&variants, &count);
-    return make_enum_decl(name, name_len, items, count, line, col);
-}
-
 static AstNode* parse_type_block(Parser *p) {
     int line = p->current.line, col = p->current.col;
 
@@ -317,17 +303,18 @@ static AstNode* parse_type_block(Parser *p) {
         int name_len = p->previous.len;
 
         bool is_immutable = false;
+
+        AstNode *value = nullptr;
         if (match(p, TOK_MUT)) {
-            is_immutable = false;
+            value = parse_expression(p);
         } else if (match(p, TOK_IMMUT)) {
             is_immutable = true;
-        } else {
-            parser_error(p, "expected ':=' or '::' in mass type declaration");
+            value = parse_expression(p);
+        } else if (!check(p, TOK_COMMA) && !check(p, TOK_RBRACE) && !p->current.preceded_nl) {
+            parser_error(p, "expected ':=', '::' or ',' in mass type declaration");
         }
 
-        AstNode *value = parse_expression(p);
-
-        if (match(p, TOK_SEMICOLON)) {
+        if (match(p, TOK_SEMICOLON) || match(p, TOK_COMMA)) {
         } else if (p->current.preceded_nl || check(p, TOK_RBRACE) || check(p, TOK_EOF)) {
         } else {
             parser_error(p, "expected newline or ';' after declaration in type block");

@@ -21,8 +21,15 @@ static AstNode* parse_inner(Parser *p) {
         if (check(p, TOK_PHRASE))       return parse_phrase(p);
         if (check(p, TOK_PROCTIME))     return parse_proctime_stmt(p);
         if (check(p, TOK_METHOD))       return parse_method(p);
-        if (check(p, TOK_STRUCT))     return parse_struct_decl(p);
-        if (check(p, TOK_ENUM))         return parse_enum_decl(p);
+
+        if (match(p, TOK_FLAGS)) {
+            AstNode *node = parse_decl(p);
+            node->type_tok = TOK_FLAGS;
+            return node;
+        }
+        if (check(p, TOK_STRUCT) && peek_at(p, 2).type == TOK_LBRACE) return parse_struct_decl(p);
+        if (check(p, TOK_STRUCT) || check(p, TOK_ENUM)) return parse_decl(p);
+        
         if (check(p, TOK_TRY))          return parse_try_stmt(p);
 
         if (check(p, TOK_RETURN))       return parse_return_stmt(p, p->current.line, p->current.col);
@@ -49,6 +56,7 @@ static AstNode* parse_inner(Parser *p) {
             node->is_static = want_static;
             return node;
         }
+        if (next.type == TOK_ENUM || next.type == TOK_STRUCT) return parse_decl(p);
         if (next.type == TOK_LBRACE) return parse_type_block(p);
         if (!current_is_type_name && (next.type == TOK_MUT || next.type == TOK_IMMUT || is_type_keyword(next.type))) {
             print_err("reserved_type", next.len, next.start);
@@ -188,6 +196,9 @@ static AstNode* parse_if_stmt(Parser *p) {
     expect(p, TOK_IF, "expected 'if'");
 
     AstNode *cond = parse_condition(p);
+    
+    if (match(p, TOK_EQ)) return parse_switch_body(p, cond, line, col);
+    
     AstNode *then_branch = parse_if_branch(p);
 
     AstNode *else_branch = nullptr;
@@ -237,7 +248,10 @@ static AstNode* parse_switch_stmt(Parser *p) {
     int line = p->current.line, col = p->current.col;
     expect(p, TOK_SWITCH, "expected 'switch'");
 
-    AstNode *scrutinee = parse_condition(p);
+    return parse_switch_body(p, parse_condition(p), line, col);
+}
+
+static AstNode* parse_switch_body(Parser *p, AstNode *scrutinee, int line, int col) {
     AstNode *guard = nullptr;
     if (scrutinee->type == BINARY && scrutinee->op == TOK_IN) {
         guard = scrutinee->right;

@@ -22,7 +22,6 @@ static bool pt_name_resolves(const char *name, int len) {
     if (env_get(pt_check_env, name, len, &dummy)) return true;
     if (env_get(pt_bleed_env, name, len, &dummy)) return true;
     if (find_struct_decl(name, len)) return true;
-    if (find_enum_decl(name, len)) return true;
     return false;
 }
 
@@ -100,7 +99,8 @@ static void pt_check_expr(AstNode *e) {
                 }
             }
             break;
-        case STRUCT_LIT:
+        case STRUCT_LIT: {
+            pt_check_env = env_new(pt_check_env);
             for (int i = 0; i < e->count; i++) {
                 AstNode *f = e->fields[i];
                 if (f->value && f->value->type == FN_LIT) {
@@ -110,19 +110,20 @@ static void pt_check_expr(AstNode *e) {
                 } else {
                     pt_check_expr(f->value);
                 }
+                env_define(pt_check_env, f->name, f->len, make_null(), false);
             }
+            pt_check_env = pt_check_env->parent;
             break;
+        }
         case FN_LIT: {
             Env *saved = pt_check_env;
             pt_check_env = env_new(pt_check_env);
+            bind_implicits(pt_check_env, nullptr, true, nullptr, 0);
             for (int i = 0; i < e->param_count; i++) {
                 AstNode *p = e->params[i];
-                if (p->is_variadic) {
-                    bind_implicits(pt_check_env, nullptr, true, nullptr, 0);
-                    continue;
-                }
+                if (p->is_variadic) continue;
                 if (p->value) pt_check_expr(p->value);
-                pt_declare_name(p->name, p->len);
+                if (!is_flagged(p)) pt_declare_name(p->name, p->len);
             }
             pt_walk_stmt(e->body, nullptr, true);
             pt_check_env = saved;
@@ -150,7 +151,7 @@ static void pt_declare_import(AstNode *imp) {
         AstNode *inner = u->program->stmts[i];
         if (inner->is_proctime) continue;   // already defined by run_proctime
         switch (inner->type) {
-            case IMMUT_DECL: case MUT_DECL: case FN_DECL: case STRUCT_DECL: case ENUM_DECL:
+            case IMMUT_DECL: case MUT_DECL: case FN_DECL: case STRUCT_DECL:
                 pt_declare_name(inner->name, inner->len); break;
             case IMPORT: pt_declare_import(inner); break;
             default: break;
@@ -170,7 +171,27 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
                 pt_check_expr(stmt->value);
                 pt_declare_name(stmt->name, stmt->len);
             } else {
+                ValueType vt;
+                if (ident_is_type_name(stmt->name, stmt->len, &vt)) {
+                    current_line = stmt->line; current_col = stmt->col;
+                    print_err("reserved_type", stmt->len, stmt->name);
+                    break;
+                }
+                if (stmt->type_tok == TOK_FLAGS && stmt->value->type == STRUCT_LIT) {
+                    AstNode *first = nullptr;
+                    for (int i = 0; i < stmt->value->count; i++) {
+                        AstNode *f = stmt->value->fields[i];
+                        if (!first && f->value) first = f;
+                        f->value = nullptr;
+                    }
+                    if (first) {
+                        current_line = first->line; current_col = first->col;
+                        print_err("flags_value", stmt->len, stmt->name);
+                    }
+                }
                 pt_add_node(stmt->name, stmt->len, owner_try ? owner_try : stmt, stmt->value);
+                if (stmt->value && stmt->value->type == STRUCT_LIT)
+                    pt_add_field_nodes(stmt->name, stmt->len, stmt->value, owner_try ? owner_try : stmt);
             }
             break;
 
@@ -193,13 +214,13 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
                 if (!checking && stmt->is_immutable) {
                     pt_add_node(target->name, target->len, owner_try ? owner_try : stmt, stmt->value);
                 }
-                if (checking) pt_declare_name(target->name, target->len, !stmt->is_immutable);
+                if (checking && stmt->type_tok == TOK_ASSIGN) {
+                    if (!pt_name_resolves(target->name, target->len))
+                        print_err("undefined", target->len, target->name);
+                } else if (checking) {
+                    pt_declare_name(target->name, target->len, !stmt->is_immutable);
+                }
             }
-            break;
-
-        case ENUM_DECL:
-            if (!checking)
-                pt_add_enum_node(stmt->name, stmt->len, stmt, owner_try ? owner_try : stmt);
             break;
             
         case ASSIGN:
@@ -231,14 +252,12 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
             pt_declare_name(stmt->name, stmt->len);
             Env *saved = pt_check_env;
             pt_check_env = env_new(pt_check_env);
+            bind_implicits(pt_check_env, nullptr, true, nullptr, 0);
             for (int i = 0; i < stmt->param_count; i++) {
                 AstNode *p = stmt->params[i];
-                if (p->is_variadic) {
-                    bind_implicits(pt_check_env, nullptr, true, nullptr, 0);
-                    continue;
-                }
+                if (p->is_variadic) continue;
                 if (p->value) pt_check_expr(p->value);
-                pt_declare_name(p->name, p->len);
+                if (!is_flagged(p)) pt_declare_name(p->name, p->len);
             }
             pt_walk_stmt(stmt->body, owner_try, checking);
             pt_check_env = saved;
@@ -402,7 +421,7 @@ static void pt_check_structure(AstNode *program) {
 static bool pt_mark_owned(AstNode *stmt) {
     if (!stmt) return true;
     switch (stmt->type) {
-        case IMMUT_DECL: case ENUM_DECL: stmt->is_proctime = true; return true;
+        case IMMUT_DECL: stmt->is_proctime = true; return true;
         case DESTRUCTURE_DECL:
             if (stmt->is_immutable) { stmt->is_proctime = true; return true; }
             return false;
@@ -465,7 +484,11 @@ static void run_proctime(AstNode *program) {
         } else {
             order[i]->is_proctime = true;
             keep = true;
+            if (error_count != errors_before && order[i]->type == IMMUT_DECL && !env_find(global_env, order[i]->name, order[i]->len)) {
+                env_define(global_env, order[i]->name, order[i]->len, make_null(), true);
+            }
         }
+        
         fclose(program_output);
         if (keep) fwrite(entry_buf, 1, entry_size, kept);
         free(entry_buf);

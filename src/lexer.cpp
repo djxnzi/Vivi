@@ -69,7 +69,7 @@ static bool match_word(Lexer *lx, const char *word) {
 // Escaped Lit
 static Token lex_quoted_literal(Lexer *lx, const char *start, char quote, TokenType tok_type, bool preceded_nl) {
     int start_line = lx->line;
-    while (!is_at_end(lx) && peek(lx) != quote && peek(lx) != '\n') {
+    while (!is_at_end(lx) && peek(lx) != quote && (quote == '"' || peek(lx) != '\n')) {
         if (peek(lx) == '\\') {
             advance(lx);
             if (!is_at_end(lx)) advance(lx);
@@ -88,8 +88,10 @@ static Token lex_quoted_literal(Lexer *lx, const char *start, char quote, TokenT
     const char *raw_start = start + 1;
     int raw_len = (int)(lx->cur - start - 2);
 
-    char *decoded = (char*)arena_alloc(raw_len);
+    char *decoded = (char*)arena_alloc(raw_len, &g_ast_arena);
     int out_len = 0;
+    int depth = 0;
+
     for (int i = 0; i < raw_len; i++) {
         char ch = raw_start[i];
         if (ch == '\\' && i + 1 < raw_len) {
@@ -103,6 +105,10 @@ static Token lex_quoted_literal(Lexer *lx, const char *start, char quote, TokenT
             else if (esc == '\\') decoded[out_len++] = '\\';
             else if (esc == quote) decoded[out_len++] = quote;
             else                  decoded[out_len++] = esc;
+        } else if (ch == '{' && quote == '"' && depth++ == 0) {
+            decoded[out_len++] = '\x01';
+        } else if (ch == '}' && quote == '"' && depth > 0 && --depth == 0) {
+            decoded[out_len++] = '\x02';
         } else {
             decoded[out_len++] = ch;
         }
@@ -163,6 +169,7 @@ Token next_token(Lexer *lx) {
         if (match_word(lx, "phrase"))       return make_token(lx, TOK_PHRASE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "inline"))       return make_token(lx, TOK_INLINE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "method"))       return make_token(lx, TOK_METHOD, start, (int)(lx->cur - start), preceded_nl);
+        if (match_word(lx, "flags"))        return make_token(lx, TOK_FLAGS, start, (int)(lx->cur - start), preceded_nl);
 
         // not a directive, comment
         while (!is_at_end(lx) && peek(lx) != '\n') advance(lx);
@@ -304,6 +311,7 @@ const char *token_name(TokenType t) {
         case TOK_PHRASE:        return "PHRASE";
         case TOK_INLINE:        return "INLINE";
         case TOK_METHOD:        return "METHOD";
+        case TOK_FLAGS:         return "FLAGS";
 
         // Import
         case TOK_AS:            return "AS";

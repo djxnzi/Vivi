@@ -116,7 +116,7 @@ static bool is_type_name_token(Token t) {
 }
 
 static bool at_type_annotation(Parser *p) {
-    if (is_type_keyword(p->current.type)) return true;
+    if (is_type_keyword(p->current.type) || check(p, TOK_ENUM) || check(p, TOK_STRUCT)) return true;
     if (check(p, TOK_IDENT) && peek_at(p, 1).type == TOK_IDENT) return true;
     if (is_type_name_token(p->current)) {
         TokenType next = peek_at(p, 1).type;
@@ -140,11 +140,15 @@ static bool check_fn(Parser *p) {
     if (t.type == TOK_LBRACKET) {
         do { if (t.type == TOK_LBRACKET) d++; else if (t.type == TOK_RBRACKET) d--;
              t = next_token(&tmp); } while (d > 0 && t.type != TOK_EOF);
-    } else if (is_type_keyword(t.type) || is_type_name_token(t) || is_type_void(t)) {
+    } else if (is_type_keyword(t.type) || is_type_name_token(t) || is_type_void(t) || t.type == TOK_STRUCT) {
         t = next_token(&tmp);
         if (t.type == TOK_STAR) t = next_token(&tmp);
         else if (t.type == TOK_LBRACKET) { t = next_token(&tmp);
             if (t.type == TOK_RBRACKET) t = next_token(&tmp); }
+    }
+    if (t.type == TOK_IDENT) {
+        Lexer after = tmp;
+        if (next_token(&after).type == TOK_IDENT) t = next_token(&tmp);
     }
     if (t.type == TOK_IDENT) {
         t = next_token(&tmp);

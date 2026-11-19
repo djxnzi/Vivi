@@ -10,7 +10,7 @@ enum AstType {
     FIELD_ACCESS, FN_LIT,
 
     // Decl
-    IMMUT_DECL, MUT_DECL, FN_DECL, STRUCT_DECL, ENUM_DECL,
+    IMMUT_DECL, MUT_DECL, FN_DECL, STRUCT_DECL,
     PARAM, FIELD, DESTRUCTURE_DECL,
 
     // Statements
@@ -100,9 +100,6 @@ struct AstNode {
     AstNode *body;
     bool is_mut;
 
-    AstNode **variants;
-    int variant_count;
-
     // Stmt
     AstNode *target;
     bool is_method;
@@ -138,6 +135,7 @@ struct AstNode {
 struct Obj {
     ValueType type;
     int refcount;
+    long born;
 };
 
 struct Value {
@@ -157,6 +155,7 @@ struct EnvEntry {
     Value value;
     bool is_const;
     bool is_local;
+    bool borrowed;
     void *static_box;
     bool proctime_owned;
     AstNode *type_annotation;
@@ -173,6 +172,7 @@ struct Env {
     const char *call_file, *call_source;
     const char *call_name; int call_name_len;
     int loop_floor;
+    int refcount;
 };
 
 struct StructField {

@@ -280,7 +280,7 @@ static Value builtin_traceback(ObjFn *fn, Value *args) {
     return make_str(owned, (int)size);
 }
 
-static Value builtin_clock(ObjFn *fn, Value *args) {
+static Value builtin_timestamp(ObjFn *fn, Value *args) {
     (void)fn; (void)args;
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -339,7 +339,9 @@ static Value builtin_set(ObjFn *fn, Value *args) {
         array->items[i] = make_null();
     }
     if (index >= array->count) array->count = index + 1;
-    array->items[index] = value_copy(args[2]);
+    Value v = value_copy(args[2], array->obj.refcount);
+    if (array->obj.refcount) value_drop(array->items[index]);
+    array->items[index] = v;
     return make_null();
 }
 
@@ -348,6 +350,11 @@ static Value builtin_trunc(ObjFn *fn, Value *args) {
     ObjArray *array = (ObjArray*)args[0].as.obj;
     long length = args[1].as.i;
     if (length < 0 || length > array->count) return builtin_error(fn);
+    if (array->obj.refcount) {
+        for (int i = (int)length; i < array->count; i++) {
+            value_drop(array->keys[i]); value_drop(array->items[i]);
+        }
+    }
     array->count = (int)length;
     return make_null();
 }

@@ -63,13 +63,13 @@ static const char* error_category(const char *code) {
             return "Arity Mismatch";
 
         case hash("proctime_cycle"):
+        case hash("flags_value"):
             return "Proctime Error";
 
         case hash("cant_destructure"):
         case hash("destructure_val_mismatch"):
             return "Destructure Error";
 
-        case hash("no_enum_variant"):
         case hash("enum_variant"):
         case hash("selector_variant"):
         case hash("selector_ambiguous"):
@@ -362,6 +362,7 @@ void print_err(const char* code, ...) {
 
         // Proctime
         case hash("proctime_cycle"):            fmt = "Circular proctime dependency involving '%.*s'"; break;
+        case hash("flags_value"):               fmt = "You asked the compiler to add enum #flags to '%.*s'. Remove the #flags directive if you want to unga bunga bit shift yourself."; break;
 
         // Declarations / variables / types
         case hash("undefined"):                 fmt = "'%.*s' is not declared."; break;
@@ -420,10 +421,9 @@ void print_err(const char* code, ...) {
         case hash("destructure_val_mismatch"):  fmt = "Destructuring expected %d values, got %d."; break;
 
         // Enums
-        case hash("no_enum_variant"):           fmt = "Enum '%.*s' has no variant '%.*s'."; break;
         case hash("enum_variant"):              fmt = "Enum variant '%.*s' has no value and the previous variant isn't numeric."; break;
-        case hash("selector_variant"):          fmt = "No enum has a variant '%.*s'."; break;
-        case hash("selector_ambiguous"):        fmt = "'.%.*s' matches more than one enum."; break;
+        case hash("selector_variant"):          fmt = "'.%.*s' has no expected struct type, and no declared struct has that field."; break;
+        case hash("selector_ambiguous"):        fmt = "'.%.*s' has no expected struct type, and more than one declared struct has that field."; break;
 
         // Arrays / indexing
         case hash("arr_index"):                 fmt = "Indexing only works on arrays."; break;

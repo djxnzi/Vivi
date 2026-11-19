@@ -1,0 +1,212 @@
+// This file shows off all the new semantics changes as of 0.04a - djinzi
+
+println("")
+
+println("New struct/enum semantics mean all structs and enums have to be declared with `::/:=` now.")
+println("Structs and Enums are contextually inferred based on content, but in the backend they're just structs now. eg: \n")
+
+print("inferred_enum :: \{
+    a,
+    b,
+    c
+\}\n")
+
+println("")
+
+print("inferred_struct :: \{
+    p: 1,
+    q: \"blep\",
+    r: () \{
+        println(\"babunga\")
+    \}
+\}\n")
+
+println("")
+
+println("You can access both enums and struct members through Zig style implicit member expression.")
+
+println(".a would return 0 from inferred_enum")
+println(".q would return \"blep\" from inferred_struct")
+
+println("")
+
+println("Using both 'struct' and 'enum' keywords to annotate which is which is still valid. enum's are auto enumerated.")
+println("`enum` is also enforced and only accepts signed/unsigned ints, so if you declare an enum and use it like a struct, you'll get a type mismatch.")
+
+println("")
+
+// Bare mass decl, all values are null
+u32 {
+    a,
+    b,
+    c
+}
+
+// Mass decl
+u32 {
+    d := 1;
+    e := 2;
+    f := 3;
+}
+
+// Proctime error, can't assign name to type
+/*
+    u32 :: {
+        g,
+        h,
+        i
+    }
+*/
+
+// Untyped enums
+untyped_enum := {
+    a,
+    b,
+    c
+}
+
+// Typed enums
+u32 typed_enum := {
+    d,
+    e,
+    f
+}
+
+// Optional enum annotation
+enum annotated_enum := {
+    g,
+    h,
+    i
+}
+
+// Explicitly stated as enum with assigned values
+enum assigned_enum := {
+    j: 1,
+    k: 10,
+    l: 100,
+}
+
+// Typed and annotated
+i32 enum thing := {
+    m,
+    n,
+    o
+}
+
+// Struct is inferred based on interior values
+inferred_struct := {
+    p: 1,
+    q: "blep",
+    r: () {
+        println("babunga")
+    }
+}
+
+println("This is printed from `inferred_struct.r()`, not sure if we should be able to call `.r()` member functions with selector semantics or not.")
+inferred_struct.r()
+
+println("")
+
+// Annotated struct
+struct annotated_struct := {
+    s: 1,
+    t: 2,
+    u: 3,
+}
+
+// Since enums are now structs, values are accessible with zig's implicit member expression
+println("This is from an enum, called with an implicit selector (.a): {.a}")
+println("This is from a struct, called with an implicit member expression (.b): {.q}")
+println("They're both zig style implicit member expressions under the hood now.")
+
+println("")
+
+// Destructuring
+destructure_a := null
+destructure_b := null
+
+// Function with a struct return
+return_thing := () {
+    return {
+        ret_a: 1,
+        ret_b: 2
+    }
+}
+
+// Destructures still work
+destructure_a, destructure_b = return_thing()
+println("Destructure from a returned struct: {destructure_a}, {destructure_b}")
+
+// Function with annotated struct return, even with the struct keyword Vivi can still tell it's a function due to the ()
+struct return_struct := () {
+    return {
+        ret_a: 3,
+        ret_b: 4
+    }
+}
+
+destructure_a, destructure_b = return_struct()
+println("Same return, annotated with `struct`: {destructure_a}, {destructure_b}")
+
+// Can't return an enum, so it returns a struct with null values, same as example #4 untyped enums
+return_null := () {
+    return {
+        a,
+        b
+    }
+}
+
+destructure_a, destructure_b = return_null()
+println("Null values from a returned struct: {destructure_a}, {destructure_b}")
+
+println("")
+
+
+// Enum #flags auto bit_set[Foo] and tags the Foo struct as a flagged enum for generic enum_flag usage
+#flags Foo :: {
+    v,
+    w,
+    x
+}
+
+// Optionally annotated
+// #flags enum Foo :: {}
+// #flags u32 enum Foo :: {}
+
+// Usage
+flagged_args := (Foo) {
+    return args[1]
+}
+
+println("Enum flags with \{.v\}: " ~ flagged_args({.v}))
+println("Enum flags with \{.v, .w\}: " ~ flagged_args({.v, .w}))
+println("Enum flags with \{.v, .w, .x\}: " ~ flagged_args({.v, .w, .x}))
+
+println("")
+
+
+// Proctime error when using #flags because it asks the compiler to do this, drop #flags if you wanna unga bunga bit shift yourself
+
+/*
+    #flags Bar :: {
+        aa: 1 << 0,
+        bb: 1 << 1,
+        cc: 1 << 2,
+        ab: aa | bb,
+        abc: aa | bb | cc
+    }
+*/
+
+// Jai switch cases work alongside regular switches for now
+
+check := 1
+if check == {
+    default: println("This is checked with `if check == \{\}`")
+}
+
+// Currently vivi does this
+switch check {
+    default: println("This is checked with `switch check \{\}`")
+}
+
+println("")

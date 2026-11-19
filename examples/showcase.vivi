@@ -19,7 +19,8 @@ println("~djinzi")
 println("\n")
 
 // ANSI colors and escape codes!
-println("You can use ansi escape codes")
+println("[Escape Codes]")
+println("You can use ansi escape codes, thanks xnasi!")
 println(bold("bold text"))
 println(dim("dim text"))
 println(italic("italic text"))
@@ -31,6 +32,8 @@ println(bold(red("bold and red")))
 println(underline(cyan("underlined cyan")))
 println(bg_red(" FAIL "), bg_green(" PASS "))
 println(rgb(255, 128, 0, "orange"))
+
+println("")
 
 
 // Multiple different comment styles
@@ -68,16 +71,16 @@ when false {
 }
 
 // Structws & Enums
-struct Point {
+struct Point :: {
     i32 x: 0,
     i32 y: 0
 }
-enum Color {
+enum Color :: {
     Red,
     Green,
     Blue
 }
-enum Op {
+enum Op :: {
     Start,
     Update,
     Stop
@@ -484,7 +487,20 @@ control :: () {
 
 switches :: () {
     n := 2
-    switch n {
+
+    /*
+        Jai's switch cases work in Vivi, dunno if we're keeping this or replacing oldschool switches
+
+        You can still use regular switches, ie:
+
+        switch x {
+            1:
+            2:
+            default:
+        }
+    */
+
+    if n == {
         1:
             println("one")
         0..3:
@@ -492,29 +508,34 @@ switches :: () {
         default:
             println("other")
     }
-    switch n {
+    if n == {
         i32:
             println("type match i32")
         string:
             println("type match string")
     }
-    switch Point(1, 2) {
+
+    // Jai switches even work for something weird like this
+    if Point(1, 2) == {
         Point:
             println("type match Point")
         default:
             println("not a point")
     }
-    switch 1 {
-        1:
-            fallthrough
-        2:
-            println("fallthrough 1 -> 2")
-    }
-    switch n in [1, 2, 3] {
+
+    // They also work for `in` cases
+    if n in [1, 2, 3] == {
         2:
             println("switch in: member 2")
         default:
             println("nope")
+    }
+
+    if 1 == {
+        1:
+            fallthrough
+        2:
+            println("fallthrough 1 -> 2")
     }
 }
 
@@ -540,7 +561,7 @@ base_lib :: () {
     println("timestamp:", timestamp() > 0)
     println("rand:", rand() >= 0)
     println("hash(\"banana\"):", hash("banana"))
-    printf("printf: coords:(%d, %d)", 42, 69)
+    printf("printf: coords:(%d, %d)\n", 42, 69)
 }
 
 math_lib :: () {

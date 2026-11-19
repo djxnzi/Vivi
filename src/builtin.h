@@ -17,7 +17,7 @@ static Value builtin_wait(ObjFn *fn, Value *args);
 static Value builtin_seed(ObjFn *fn, Value *args);
 static Value builtin_exit(ObjFn *fn, Value *args);
 static Value builtin_traceback(ObjFn *fn, Value *args);
-static Value builtin_clock(ObjFn *fn, Value *args);
+static Value builtin_timestamp(ObjFn *fn, Value *args);
 static Value builtin_rand(ObjFn *fn, Value *args);
 static Value builtin_len(ObjFn *fn, Value *args);
 static Value builtin_get(ObjFn *fn, Value *args);
@@ -42,7 +42,7 @@ static const Builtin builtin_table[] = {
     { "_write",     2, builtin_write },
     { "_exit",      1, builtin_exit },
     { "_traceback", 0, builtin_traceback },
-    { "_clock",     0, builtin_clock },
+    { "_timestamp", 0, builtin_timestamp },
     { "_rand",      0, builtin_rand },
     { "_len",       1, builtin_len },
     { "_get",       2, builtin_get },

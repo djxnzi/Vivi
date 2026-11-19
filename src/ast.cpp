@@ -7,7 +7,7 @@ struct AstList {
 };
 
 static AstNode* ast_alloc(AstType type, int line, int col) {
-    AstNode *n = (AstNode*)arena_alloc(sizeof(AstNode));
+    AstNode *n = (AstNode*)arena_alloc(sizeof(AstNode), &g_ast_arena);
     memset(n, 0, sizeof(AstNode));
     n->type = type;
     n->line = line;
@@ -42,7 +42,7 @@ static AstNode** ast_list_finish(AstList *list, int *out_count) {
         free(list->items);
         return nullptr;
     }
-    AstNode **arena_copy = (AstNode**)arena_alloc(sizeof(AstNode*) * list->count);
+    AstNode **arena_copy = (AstNode**)arena_alloc(sizeof(AstNode*) * list->count, &g_ast_arena);
     memcpy(arena_copy, list->items, sizeof(AstNode*) * list->count);
     free(list->items);
     return arena_copy;
@@ -349,15 +349,6 @@ AstNode* make_struct_decl(const char *name, int len, AstNode **fields, int field
     n->len = len;
     n->fields = fields;
     n->field_count = field_count;
-    return n;
-}
-
-AstNode* make_enum_decl(const char *name, int len, AstNode **variants, int variant_count, int line, int col) {
-    AstNode *n = ast_alloc(ENUM_DECL, line, col);
-    n->name = name;
-    n->len = len;
-    n->variants = variants;
-    n->variant_count = variant_count;
     return n;
 }
 

@@ -33,5 +33,5 @@ static bool pt_name_resolves(const char *name, int len);
 static void pt_check_expr(AstNode *e);
 static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking);
 static void pt_check_structure(AstNode *program);
-static void pt_add_enum_node(const char *name, int len, AstNode *enum_decl, AstNode *decl);
+static void pt_add_field_nodes(const char *name, int len, AstNode *lit, AstNode *decl);
 static void run_proctime(AstNode *program);

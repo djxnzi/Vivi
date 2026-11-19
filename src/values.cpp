@@ -212,13 +212,29 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
         }
 
         if (v.type != expected_vt) return false;
+        if (is_ident(type_annotation, "enum")) {
+            ObjStruct *s = (ObjStruct*)v.as.obj;
+            for (int i = 0; i < s->count; i++)
+                if (s->fields[i].value.type != ValueType::Int) return false;
+        }
         *out = v;
         
         return true;
     }
 
-    AstNode *struct_decl = find_struct_decl(type_annotation->name, type_annotation->len);
-    if (struct_decl) {
+    if (names_struct(type_annotation->name, type_annotation->len)) {
+        Value t;
+        if (v.type == ValueType::Int && env_get(global_env, type_annotation->name, type_annotation->len, &t)) {
+            ObjStruct *e = (ObjStruct*)t.as.obj;
+            long all = 0;
+            for (int i = 0; i < e->count; i++) {
+                if (e->fields[i].value.type != ValueType::Int) return false;
+                if (e->fields[i].value.as.i == v.as.i) { *out = v; return true; }
+                all |= e->fields[i].value.as.i;
+            }
+            *out = v;
+            return e->type_name_len == 6 && strncmp(e->type_name, "#flags", 6) == 0 && !(v.as.i & ~all);
+        }
         if (v.type != ValueType::Struct) return false;
         ObjStruct *s = (ObjStruct*)v.as.obj;
         bool ok = s->type_name && s->type_name_len == type_annotation->len &&
@@ -237,12 +253,6 @@ static bool value_matches_type(AstNode *type_annotation, Value v, Value *out) {
         return value_matches_type(&tmp, v, out);
     }
 
-    if (!bound && find_enum_decl(type_annotation->name, type_annotation->len)) {
-        print_err("not_a_type", type_annotation->len, type_annotation->name);
-        *out = v;
-        return true;
-    }
-
     *out = v;
     return true;
 }
@@ -255,7 +265,7 @@ static bool type_is_void(AstNode *rt) {
 }
 
 static void set_returned_item(Value *out, Value original, int i, Value item) {
-    if (out->as.obj == original.as.obj) *out = value_copy(original);
+    if (out->as.obj == original.as.obj) *out = value_copy(original, false);
     ((ObjArray*)out->as.obj)->items[i] = item;
 }
 
@@ -309,8 +319,8 @@ static bool return_type_matches(AstNode *return_type, Value result, Value *out, 
         return result.type == expected_vt;
     }
 
-    AstNode *struct_decl = find_struct_decl(return_type->name, return_type->len);
-    if (struct_decl) {
+    if (names_struct(return_type->name, return_type->len)) {
+        if (result.type == ValueType::Int) return value_matches_type(return_type, result, out);
         if (result.type != ValueType::Struct) return false;
         ObjStruct *s = (ObjStruct*)result.as.obj;
         return s->type_name && s->type_name_len == return_type->len && strncmp(s->type_name, return_type->name, return_type->len) == 0;
@@ -384,9 +394,21 @@ static void array_needs_capacity(ObjArray *a, int needed) {
     if (needed <= a->capacity) return;
     int new_cap = a->capacity < 8 ? 8 : a->capacity * 2;
     if (new_cap < needed) new_cap = needed;
-    Value *new_items = (Value*)arena_alloc(sizeof(Value) * new_cap);
-    Value *new_keys  = (Value*)arena_alloc(sizeof(Value) * new_cap);
-    for (int i = 0; i < a->count; i++) { new_items[i] = a->items[i]; new_keys[i] = a->keys[i]; }
+    long born = a->obj.refcount ? a->obj.born : 0;
+
+    Value *new_items = (Value*)(born ? value_alloc(sizeof(Value) * new_cap) : arena_alloc(sizeof(Value) * new_cap));
+    Value *new_keys  = (Value*)(born ? value_alloc(sizeof(Value) * new_cap) : arena_alloc(sizeof(Value) * new_cap));
+
+    for (int i = 0; i < a->count; i++) {
+        new_items[i] = a->items[i];
+        new_keys[i] = a->keys[i];
+    }
+
+    if (born) {
+        pending_push(a->items, sizeof(Value) * a->capacity, born);
+        pending_push(a->keys, sizeof(Value) * a->capacity, born);
+    }
+
     a->items = new_items;
     a->keys = new_keys;
     a->capacity = new_cap;
@@ -395,8 +417,11 @@ static void array_needs_capacity(ObjArray *a, int needed) {
 static void* grow_array(void *arr, int count, int *capacity, size_t elem_size, int min_cap) {
     if (count < *capacity) return arr;
     int new_cap = *capacity < min_cap ? min_cap : *capacity * 2;
-    void *new_arr = arena_alloc(elem_size * new_cap);
-    if (arr) memcpy(new_arr, arr, elem_size * (size_t)count);
+    void *new_arr = value_alloc(elem_size * new_cap);
+    if (arr) {
+        memcpy(new_arr, arr, elem_size * (size_t)count);
+        pending_push(arr, elem_size * *capacity, epoch);
+    }
     *capacity = new_cap;
     return new_arr;
 }
