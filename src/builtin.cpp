@@ -116,6 +116,23 @@ static char* builtin_cstr(ObjStr *s) {
     return c;
 }
 
+// Syscall.
+
+static Value builtin_exec(ObjFn *fn, Value *args) {
+    if (args[0].type != ValueType::Int) return builtin_error(fn);
+
+    long a[7];
+    for (int i = 0; i < 7; i++) {
+        if (args[i].type == ValueType::Int) a[i] = args[i].as.i;
+        else if (i > 0 && is_text(args[i]))
+            a[i] = (long)(uintptr_t)builtin_cstr((ObjStr*)args[i].as.obj);
+        else return builtin_error(fn);
+    }
+
+    long ret = syscall(a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
+    return make_int(ret);
+}
+
 static Value builtin_write(ObjFn *fn, Value *args) {
     if (args[0].type != ValueType::Int || !is_text(args[1])) return builtin_error(fn);
     int fd = (int)args[0].as.i;

@@ -1,0 +1,11 @@
+print(_exec(102, 0, 0, 0, 0, 0, 0))
+print("\n")
+
+pid := _exec(39, 0, 0, 0, 0, 0, 0)
+print(pid)
+print("\n")
+
+_exec(1, 1, "hello from a syscall\n", _len("hello from a syscall\n"), 0, 0, 0)
+print("\n")
+
+// just testing if syscall works, from testing it seems to.

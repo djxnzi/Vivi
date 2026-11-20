@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 #include <cstdint>
 
 namespace fs = std::filesystem;
