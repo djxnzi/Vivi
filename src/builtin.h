@@ -58,6 +58,6 @@ static const Builtin builtin_table[] = {
     { "_pipe",      0, builtin_pipe },
     { "_spawn",     4, builtin_spawn },
     { "_wait",      1, builtin_wait },
-    { "_sleep",     1, builtin_sleep }
+    { "_sleep",     1, builtin_sleep },
     { "_exec",      7, builtin_exec }
 };
