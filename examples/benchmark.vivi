@@ -1,5 +1,5 @@
 // Made by Xansidev - github.com/XansiOnGit
-#import "Math"
+#import "core/math"
 
 // each work function takes a size and returns how many "operations" it did
 bench := (string name, n, work) {

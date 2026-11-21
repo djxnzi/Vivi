@@ -5,11 +5,11 @@
 // build/vivi examples/showcase.vivi
 
 // Imports, imported flat but use "as" to give imports a namespace
-#import "Strings"
-#import "Math"
-#import "Io"
-#import "Sys"
-#import "Time" as clock
+#import "core/strings"
+#import "core/math"
+#import "core/io"
+#import "core/sys"
+#import "core/time" as clock
 
 println("\n")
 println("Hi yes hello, welcome to Vivi. This is a wip showcase of the language.")

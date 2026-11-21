@@ -1,8 +1,8 @@
 // Donut by Xansidev - github.com/XansiOnGit
 
-#import "Math"
-#import "Sys"
-#import "Io"
+#import "core/math"
+#import "core/sys"
+#import "core/io"
 
 // ---- knobs ----
 ISTEP := 0.05     // sweep around the ring: smaller = fewer holes, slower
