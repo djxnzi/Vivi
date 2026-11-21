@@ -15,20 +15,15 @@ TCGETS :: 21505
 TCSETS :: 21506
 TIOCGWINSZ :: 21523
 
-_dbuf := malloc(8192)
-_pbuf := malloc(4096)
-_sbuf := malloc(256)
-_wbuf := malloc(8)
-_tio := malloc(64)
-_saved := malloc(64)
-_mask := malloc(8)
-_sibuf := malloc(128)
-
-_cols := 80
-_rows := 24
-_raw := false
-_sigfd := -1
-_home := null
+_cstr := (p) {
+    s := ""
+    i := 0
+    while _peek(p + i) != 0 {
+        s ~= string(rune(_peek(p + i)))
+        i++
+    }
+    return s
+}
 
 _peek_n := (p, n) {
     v := 0
@@ -46,21 +41,6 @@ _poke_n := (p, v, n) {
         v = v / 256
     }
 }
-
-_bit_or := (a, b) { return a + b - (a & b) }
-_bit_clear := (v, mask) { return v - (v & mask) }
-
-_cstr := (p) {
-    s := ""
-    i := 0
-    while _peek(p + i) != 0 {
-        s ~= string(rune(_peek(p + i)))
-        i++
-    }
-    return s
-}
-
-// some helpers and such that i need.
 
 _has_prefix := (s, prefix) {
     if _len(prefix) > _len(s) { return false }
@@ -86,11 +66,22 @@ _split_path := (s) {
     return out
 }
 
-run := (cmd) {
-    return _run(cmd)
+// wrapper
+
+SysState :: {
+    cols: 80,
+    rows: 24,
+    raw: false,
+    sigfd: -1,
+    home: null,
+    saved_tty: null
 }
 
-capture := (cmd) {
+sys := SysState()
+
+run :: (cmd) { return _run(cmd) }
+
+capture :: (cmd) {
     p := _pipe()
     pid := _spawn(cmd, 0, p[1], 2)
     _close(p[1])
@@ -104,7 +95,7 @@ capture := (cmd) {
     return [_wait(pid), out]
 }
 
-feed := (cmd, text) {
+feed :: (cmd, text) {
     p := _pipe()
     pid := _spawn(cmd, p[0], 1, 2)
     _close(p[0])
@@ -130,25 +121,38 @@ redirect :: (cmd, path) {
     return code
 }
 
-_get_home := () {
-    if _home == null {
-        _home = capture("printf '%s' \"$HOME\"")[1]
+#method get_cwd :: () {
+    _pbuf := malloc(4096)
+    ret := _exec(SYS_GETCWD, _pbuf, 4096, 0, 0, 0, 0)
+    if ret < 0 { 
+        free(_pbuf)
+        return null 
     }
-    return _home
+    cwd := _cstr(_pbuf)
+    free(_pbuf)
+    return cwd
 }
 
-syscall := (n, a := 0, b := 0, c := 0, d := 0, e := 0, f := 0) {
-    return _exec(n, a, b, c, d, e, f)
+#method is_dir :: (path) {
+    _sbuf := malloc(256)
+    ret := _exec(SYS_STAT, path, _sbuf, 0, 0, 0, 0)
+    if ret < 0 { 
+        free(_sbuf)
+        return false 
+    }
+    result := (_peek_n(_sbuf + 24, 4) & 61440) == 16384
+    free(_sbuf)
+    return result
 }
 
-ioctl := (fd, req, arg := 0) {
-    return _exec(SYS_IOCTL, fd, req, arg, 0, 0, 0)
-}
-
-list_dir := (path) {
-    // No string() needed, builtin_exec handles it
-    fd := _exec(SYS_OPEN, path, 589824, 0, 0, 0, 0)    
-    if fd < 0 { return null }
+#method list_dir :: (path) {
+    _dbuf := malloc(8192)
+    fd := _exec(SYS_OPEN, path, 589824, 0, 0, 0, 0)
+    if fd < 0 { 
+        free(_dbuf)
+        return null 
+    }
+    
     out := []
     while true {
         n := _exec(SYS_GETDENTS64, fd, _dbuf, 8192, 0, 0, 0)
@@ -160,35 +164,35 @@ list_dir := (path) {
             off += _peek_n(_dbuf + off + 16, 2)
         }
     }
+    
     _exec(SYS_CLOSE, fd, 0, 0, 0, 0, 0)
+    free(_dbuf)
     return out
 }
 
-is_dir := (path) {
-    if _exec(SYS_STAT, path, _sbuf, 0, 0, 0, 0) < 0 { return false }
-    return (_peek_n(_sbuf + 24, 4) & 61440) == 16384
-}
-
-get_cwd := () {
-    if _exec(SYS_GETCWD, _pbuf, 4096, 0, 0, 0, 0) < 0 { return null }
-    return _cstr(_pbuf)
-}
-
-expand_path := (path) {
-    if path == "~" { return _get_home() }
+#method expand_path :: (path) {
+    if path == "~" { 
+        if sys.home == null {
+            sys.home = capture("printf '%s' \"$HOME\"")[1]
+        }
+        return sys.home 
+    }
     if _has_prefix(path, "~/") { 
+        if sys.home == null {
+            sys.home = capture("printf '%s' \"$HOME\"")[1]
+        }
         rest := ""
         for i := 1; i < _len(path); i++ {
             rest ~= path.char_at(i)
         }
-        return _get_home() ~ rest
+        return sys.home ~ rest
     }
     return path
 }
 
-abs_dir := (path) {
-    p := expand_path(path)
-    if !_has_prefix(p, "/") { p = get_cwd() ~ "/" ~ p }
+#method abs_dir :: (path) {
+    p := self.expand_path(path)
+    if !_has_prefix(p, "/") { p = self.get_cwd() ~ "/" ~ p }
     
     parts := _split_path(p)
     clean_parts := []
@@ -208,101 +212,108 @@ abs_dir := (path) {
     return out
 }
 
-update_size := (fd := 1) {
+#method term_size :: (fd := 1) {
+    _wbuf := malloc(8)
     for f in [fd, 0, 2] {
         if _exec(SYS_IOCTL, f, TIOCGWINSZ, _wbuf, 0, 0, 0) >= 0 {
             cols := _peek_n(_wbuf + 2, 2)
             if cols > 0 {
-                _cols = cols
-                _rows = _peek_n(_wbuf, 2)
-                return [_cols, _rows]
+                sys.cols = cols
+                sys.rows = _peek_n(_wbuf, 2)
+                break
             }
         }
     }
-    return [_cols, _rows]
+    free(_wbuf)
+    return [sys.cols, sys.rows]
 }
 
-term_size := (fd := 1) {
-    return update_size(fd)
-}
-
-termios_get := (fd, buf) {
-    return _exec(SYS_IOCTL, fd, TCGETS, buf, 0, 0, 0)
-}
-
-termios_set := (fd, buf, when := 0) {
-    return _exec(SYS_IOCTL, fd, TCSETS + when, buf, 0, 0, 0)
-}
-
-tty_is := (fd := 0) {
-    return termios_get(fd, _tio) >= 0
-}
-
-tty_raw := (fd := 0) {
-    if !_raw {
-        if termios_get(fd, _saved) < 0 { return false }
-        _raw = true
+#method tty_raw :: (fd := 0) {
+    _tio := malloc(64)
+    
+    // Use sys.raw instead of self.raw!
+    if !sys.raw {
+        sys.saved_tty = malloc(64)
+        if _exec(SYS_IOCTL, fd, TCGETS, sys.saved_tty, 0, 0, 0) < 0 { 
+            free(_tio)
+            free(sys.saved_tty)
+            sys.saved_tty = null
+            return false 
+        }
+        sys.raw = true
     }
-    _memcpy(_tio, _saved, 64)
+    
+    _memcpy(_tio, sys.saved_tty, 64)
     iflag := _peek_n(_tio, 4)
     cflag := _peek_n(_tio + 8, 4)
     lflag := _peek_n(_tio + 12, 4)
-    _poke_n(_tio, _bit_clear(iflag, 1330), 4)
-    _poke_n(_tio + 8, _bit_or(cflag, 48), 4)
-    _poke_n(_tio + 12, _bit_clear(lflag, 32779), 4)
+    
+    _poke_n(_tio, iflag - (iflag & 1330), 4)
+    _poke_n(_tio + 8, cflag + 48 - (cflag & 48), 4)
+    _poke_n(_tio + 12, lflag - (lflag & 32779), 4)
+    
     _poke(_tio + 23, u8(1))
     _poke(_tio + 22, u8(0))
-    return termios_set(fd, _tio, 1) >= 0
+    
+    ret := _exec(SYS_IOCTL, fd, TCSETS + 1, _tio, 0, 0, 0) >= 0
+    free(_tio)
+    return ret
 }
 
-tty_restore := (fd := 0) {
-    if !_raw { return true }
-    _raw = false
-    return termios_set(fd, _saved, 1) >= 0
+#method tty_restore :: (fd := 0) {
+    if !sys.raw { return true }
+    sys.raw = false
+    
+    if sys.saved_tty == null { return false }
+    
+    ret := _exec(SYS_IOCTL, fd, TCSETS + 1, sys.saved_tty, 0, 0, 0) >= 0
+    
+    free(sys.saved_tty)
+    sys.saved_tty = null
+    
+    return ret
 }
 
-_lflag := (fd, mask, on) {
-    if termios_get(fd, _tio) < 0 { return false }
-    l := _bit_clear(_peek_n(_tio + 12, 4), mask)
-    if on { l += mask }
-    _poke_n(_tio + 12, l, 4)
-    return termios_set(fd, _tio, 0) >= 0
-}
+#method sigwinch_init :: () {
+    if sys.sigfd >= 0 { return true }
+    _mask := malloc(8)
+    if _mask == null { return false }
 
-tty_echo := (on, fd := 0) {
-    return _lflag(fd, 8, on)
-}
-
-tty_canon := (on, fd := 0) {
-    return _lflag(fd, 2, on)
-}
-
-sigwinch_init := () {
-    if _sigfd >= 0 { return true }
     _poke_n(_mask, 134217728, 8)
-    if _exec(SYS_RT_SIGPROCMASK, 0, _mask, 0, 8, 0, 0) < 0 { return false }
+    if _exec(SYS_RT_SIGPROCMASK, 0, _mask, 0, 8, 0, 0) < 0 { 
+        free(_mask)
+        return false 
+    }
+    
     fd := _exec(SYS_SIGNALFD4, -1, _mask, 8, 526336, 0, 0)
+    free(_mask)
     if fd < 0 { return false }
-    _sigfd = fd
+    sys.sigfd = fd
     return true
 }
 
-sigwinch_pending := () {
-    if _sigfd < 0 { return false }
+#method sigwinch_poll :: () {
+    if sys.sigfd < 0 { return false }
+    _sibuf := malloc(128)
+    if _sibuf == null { return false }
+
     got := false
-    while _exec(SYS_READ, _sigfd, _sibuf, 128, 0, 0, 0) > 0 { got = true }
+    while _exec(SYS_READ, sys.sigfd, _sibuf, 128, 0, 0, 0) > 0 { got = true }
+    free(_sibuf)
+    
+    if got {
+        sys.term_size()
+    }
     return got
 }
 
-sigwinch_poll := () {
-    if !sigwinch_pending() { return false }
-    update_size()
-    return true
-}
+#method sigwinch_close :: () {
+    if sys.sigfd < 0 { return }
+    _mask := malloc(8)
+    if _mask == null { return }
 
-sigwinch_close := () {
-    if _sigfd < 0 { return }
-    _exec(SYS_CLOSE, _sigfd, 0, 0, 0, 0, 0)
+    _exec(SYS_CLOSE, sys.sigfd, 0, 0, 0, 0, 0)
     _exec(SYS_RT_SIGPROCMASK, 1, _mask, 0, 8, 0, 0)
-    _sigfd = -1
+    free(_mask)
+    sys.sigfd = -1
 }
