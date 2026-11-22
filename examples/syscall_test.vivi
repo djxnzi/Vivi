@@ -1,11 +1,116 @@
-print(_exec(102, 0, 0, 0, 0, 0, 0))
-print("\n")
+#import "Strings"
+#import "Sys" as sys // the thing i check under my bed for at night.
+#import "Io"
 
-pid := _exec(39, 0, 0, 0, 0, 0, 0)
-print(pid)
-print("\n")
+// helper thing to make output readable
+check := (label, condition) {
+    if condition {
+        print("[OK] " ~ label ~ "\n")
+    } else {
+        print("[FAIL] " ~ label ~ "\n")
+    }
+}
 
-_exec(1, 1, "hello from a syscall\n", _len("hello from a syscall\n"), 0, 0, 0)
-print("\n")
+print("Testing vivi sys core library.\n\n")
 
-// just testing if syscall works, from testing it seems to.
+// get_cwd and abs_dir, expand_path
+
+print("Paths\n")
+cwd := sys.get_cwd()
+print("get_cwd(): " ~ cwd ~ "\n")
+
+abs1 := sys.abs_dir(".")
+print("abs_dir(\".\"): " ~ abs1 ~ "\n")
+check("abs_dir resolves relative to cwd", abs1 == cwd)
+
+abs2 := sys.abs_dir("foo/../bar/./baz")
+print("abs_dir(\"foo/../bar/./baz\"): " ~ abs2 ~ "\n")
+check("abs_dir collapses .. and .", abs2 == cwd ~ "/bar/baz")
+
+expanded := sys.expand_path("~/Documents")
+print("expand_path(\"~/Documents\"): " ~ expanded ~ "\n")
+check("expand_path starts with /", has_prefix(expanded, "/"))
+
+// is_dir and list_dir
+
+print("\n--- Filesystem ---\n")
+check("is_dir('/tmp')", sys.is_dir("/tmp"))
+check("!is_dir('/etc/passwd')", !sys.is_dir("/etc/passwd"))
+
+dirs := sys.list_dir("/tmp")
+if dirs != null {
+    print("list_dir('/tmp') found " ~ string(dirs.len) ~ " entries.\n")
+    check("list_dir works", dirs.len > 0)
+} else {
+    print("[FAIL] list_dir('/tmp') returned null\n")
+}
+
+// update_size and term_size & ioctl
+
+print("\n--- Terminal Size ---\n")
+sz := sys.term_size()
+print("term_size() -> Cols: " ~ string(sz[0]) ~ ", Rows: " ~ string(sz[1]) ~ "\n")
+check("cols > 0", sz[0] > 0)
+
+sz2 := sys.term_size()
+check("term_size() matches term_size()", sz2[0] == sz[0] and sz2[1] == sz[1])
+
+// ioctl test (just checking it returns a valid int, it might fail on non-tty)
+test_buf := malloc(8)
+res := _exec(16, 1, 21523, test_buf, 0, 0, 0) // ignore my "sin".
+print("ioctl(1, TIOCGWINSZ) returned: " ~ string(res) ~ "\n")
+free(test_buf) // Clean up since we're testing and it actually exists so use it :p -Xansi
+
+print("\nTermios (fun stuff :3\n")
+
+// Allocate the buffer FIRST
+term_buf := malloc(64)
+
+// Then test tty_is
+is_tty := _exec(16, 0, 21505, term_buf, 0, 0, 0) >= 0
+print("tty_is(): " ~ string(is_tty) ~ "\n")
+
+// Then test termios_get
+if _exec(16, 0, 21505, term_buf, 0, 0, 0) >= 0 {
+    print("termios_get() succeeded\n")
+} else {
+    print("termios_get() failed (maybe not a tty?)\n")
+}
+
+free(term_buf) // clean up after thyself lol.
+
+// goated function for TUI apps.
+print("\nSIGWINCH\n")
+init_ok := sys.sigwinch_init()
+if init_ok {
+    print("sigwinch_init() -> OK\n")
+    pending := sys.sigwinch_poll()
+    print("sigwinch_poll() -> " ~ string(pending) ~ "\n")
+    sys.sigwinch_close()
+    print("sigwinch_close() -> OK\n")
+} else {
+    print("[FAIL] sigwinch_init()\n")
+}
+
+print("\nSys Execution\n")
+
+res_cap := sys.capture("echo -n 'hello capture'")
+print("capture() code: " ~ string(res_cap[0]) ~ ", out: " ~ res_cap[1] ~ "\n")
+check("capture output", res_cap[1] == "hello capture")
+
+res_feed := sys.feed("cat", "hello feed")
+print("feed() code: " ~ string(res_feed) ~ "\n")
+
+res_pipe := sys.pipe("echo hello pipe", "grep pipe")
+print("pipe() code: " ~ string(res_pipe) ~ "\n")
+
+res_redir := sys.redirect("echo redirect_test", "/tmp/vivi_test_redir.txt")
+print("redirect() code: " ~ string(res_redir) ~ "\n")
+if file_exists("/tmp/vivi_test_redir.txt") {
+    print("redirect created file successfully\n")
+}
+
+res_run := sys.run("true")
+print("run() code: " ~ string(res_run) ~ "\n")
+
+print("\nfinished\n")
