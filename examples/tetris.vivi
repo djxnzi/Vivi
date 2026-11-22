@@ -7,10 +7,10 @@
 // Run under limits there is apparently a massive amount of ram being eaten and unfree'd so just use this.
 // bash -c 'ulimit -v 1000000; ulimit -t 1500; vivi tetris.vivi; stty sane'
 
-#import "Math"
-#import "Io"
-#import "Sys"
-#import "Strings"
+#import "core/math"
+#import "core/io"
+#import "core/sys"
+#import "core/strings"
 
 W := 10
 H := 20

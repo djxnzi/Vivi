@@ -2,7 +2,7 @@
 // fix() swaps placeholders in test JSON:  < {   > }   ' "   ^ \
 // jsonpassc : json passing check
 
-#import "Json"
+#import "core/json"
 
 stats := [0, 0]
 println("json tests")

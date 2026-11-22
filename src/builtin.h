@@ -59,5 +59,5 @@ static const Builtin builtin_table[] = {
     { "_spawn",     4, builtin_spawn },
     { "_wait",      1, builtin_wait },
     { "_sleep",     1, builtin_sleep },
-    { "_exec",   7, builtin_exec }
+    { "_exec",      7, builtin_exec }
 };

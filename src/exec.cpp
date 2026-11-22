@@ -1,11 +1,8 @@
 #include <map>
 static std::string resolve_import(const std::string &path) {
-    if (path.find('.') == std::string::npos && path.find('/') == std::string::npos) {
-        std::string mod = path;
-        for (char &c : mod) {
-            if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
-        }
-        return vivi.lib_dir + "/core/" + mod + ".vivi";
+    if (fs::path(path).extension() != ".vivi") {
+        std::string lib_path = vivi.lib_dir + "/" + path;
+        return fs::is_directory(lib_path) ? lib_path : lib_path + ".vivi";
     }
     fs::path rel = (fs::path(current_file).parent_path() / path).lexically_normal();
     return fs::exists(rel) ? rel.string() : fs::path(path).lexically_normal().string();
@@ -16,6 +13,23 @@ static std::map<std::string, ImportUnit> import_units;
 static ImportUnit* load_import_unit(const std::string &path, const std::string &file_path, bool report) {
     auto it = import_units.find(file_path);
     if (it != import_units.end()) return it->second.program ? &it->second : nullptr;
+
+    if (fs::is_directory(file_path)) {
+        std::map<std::string, AstNode*> files;
+        for (const auto &e : fs::directory_iterator(file_path)) {
+            if (!e.is_regular_file() || e.path().extension() != ".vivi" || e.path().filename() == "_base.vivi") continue;
+            std::string child = path + "/" + e.path().stem().string();
+            char *heap_child = (char*)arena_alloc(child.length() + 1, &g_ast_arena);
+            memcpy(heap_child, child.c_str(), child.length() + 1);
+            files[child] = make_import(heap_child, (int)child.length(), nullptr, 0, current_line, current_col);
+        }
+        AstList stmts;
+        ast_list_init(&stmts);
+        for (auto &f : files) ast_list_push(&stmts, f.second);
+        ImportUnit &u = import_units[file_path];
+        u = { make_program(&stmts, current_line, current_col), current_file, program_source };
+        return &u;
+    }
 
     std::string source;
     if (!read_file(file_path.c_str(), source)) {
@@ -89,43 +103,58 @@ static AstNode* exec_stmt(AstNode *node) {
                 return nullptr;
             }
 
-            std::string source;
-            if (!read_file(file_path.c_str(), source)) {
-                print_err("cant_find_import", path.c_str());
-                return nullptr;
-            }
-
-            char *heap_source = (char*)arena_alloc((int)source.length() + 1, &g_ast_arena);
-            memcpy(heap_source, source.c_str(), source.length() + 1);
-
-            char *heap_path = (char*)arena_alloc((int)file_path.length() + 1, &g_ast_arena);
-            memcpy(heap_path, file_path.c_str(), file_path.length() + 1);
-
-            const char *saved_file = current_file;
-            const char *saved_source = program_source;
-            current_file = heap_path;
-            program_source = heap_source;
-
-            Lexer import_lx = { heap_source, heap_source, 1, 1 };
-            Parser import_p = {};
-            import_p.lx = &import_lx;
-            import_p.had_error = false;
-            import_p.lookahead_count = 0;
-            parser_advance(&import_p);
-            AstNode *import_program = parse_program(&import_p);
-            if (import_p.had_error) {
-                print_err("import_parse_err", path.c_str());
-                current_file = saved_file;
-                program_source = saved_source;
-                return nullptr;
-            }
-
             Env *saved = global_env;
             Env *module_env = env_new(root_env);
-            global_env = module_env;
-            for (int i = 0; i < import_program->stmt_count; i++) {
-                exec_stmt(import_program->stmts[i]);
+            const char *saved_file = current_file;
+            const char *saved_source = program_source;
+            ImportUnit *dir = fs::is_directory(file_path) ? load_import_unit(path, file_path, true) : nullptr;
+            int file_count = dir ? dir->program->stmt_count : 1;
+
+            for (int f = 0; f < file_count; f++) {
+                std::string name = dir ? std::string(dir->program->stmts[f]->path, (size_t)dir->program->stmts[f]->path_len) : path;
+                std::string file = dir ? resolve_import(name) : file_path;
+
+                std::string source;
+                if (!read_file(file.c_str(), source)) {
+                    print_err("cant_find_import", name.c_str());
+                    current_file = saved_file;
+                    program_source = saved_source;
+                    env_release(module_env);
+                    return nullptr;
+                }
+
+                char *heap_source = (char*)arena_alloc((int)source.length() + 1, &g_ast_arena);
+                memcpy(heap_source, source.c_str(), source.length() + 1);
+
+                char *heap_path = (char*)arena_alloc((int)file.length() + 1, &g_ast_arena);
+                memcpy(heap_path, file.c_str(), file.length() + 1);
+
+                current_file = heap_path;
+                program_source = heap_source;
+
+                Lexer import_lx = { heap_source, heap_source, 1, 1 };
+                Parser import_p = {};
+                import_p.lx = &import_lx;
+                import_p.had_error = false;
+                import_p.lookahead_count = 0;
+                parser_advance(&import_p);
+                AstNode *import_program = parse_program(&import_p);
+                if (import_p.had_error) {
+                    print_err("import_parse_err", name.c_str());
+                    current_file = saved_file;
+                    program_source = saved_source;
+                    env_release(module_env);
+                    return nullptr;
+                }
+
+                global_env = module_env;
+                for (int i = 0; i < import_program->stmt_count; i++) {
+                    exec_stmt(import_program->stmts[i]);
+                }
+                global_env = saved;
             }
+
+            global_env = module_env;
             for (int i = module_env->defer_count - 1; i >= 0; i--) {
                 eval_expr(module_env->defers[i]);
             }
