@@ -1,6 +1,6 @@
-#import "Strings"
-#import "Sys" as sys // the thing i check under my bed for at night.
-#import "Io"
+#import "core/strings"
+#import "core/strings" as sys // the thing i check under my bed for at night.
+#import "core/io"
 
 // helper thing to make output readable
 check := (label, condition) {
