@@ -1,10 +1,87 @@
-// Run cmd with the script's own stdin/stdout/stderr; returns the exit code
-run := (cmd) {
-    return _run(cmd)
+// sys.vivi
+// _exec stuff is linux x86_64 only right nowww, syscall numbers and struct offsets
+
+SYS_READ :: 0
+SYS_OPEN :: 2
+SYS_CLOSE :: 3
+SYS_STAT :: 4
+SYS_RT_SIGPROCMASK :: 14
+SYS_IOCTL :: 16
+SYS_GETCWD :: 79
+SYS_GETDENTS64 :: 217
+SYS_SIGNALFD4 :: 289
+
+TCGETS :: 21505
+TCSETS :: 21506
+TIOCGWINSZ :: 21523
+
+_cstr := (p) {
+    s := ""
+    i := 0
+    while _peek(p + i) != 0 {
+        s ~= string(rune(_peek(p + i)))
+        i++
+    }
+    return s
 }
 
-// Run cmd and return [exit code, stdout as a string]
-capture := (cmd) {
+_peek_n := (p, n) {
+    v := 0
+    i := n - 1
+    while i >= 0 {
+        v = v * 256 + _peek(p + i)
+        i -= 1
+    }
+    return v
+}
+
+_poke_n := (p, v, n) {
+    for i := 0; i < n; i++ {
+        _poke(p + i, u8(v % 256))
+        v = v / 256
+    }
+}
+
+_has_prefix := (s, prefix) {
+    if _len(prefix) > _len(s) { return false }
+    for i := 0; i < _len(prefix); i++ {
+        if s.char_at(i) != prefix.char_at(i) { return false }
+    }
+    return true
+}
+
+_split_path := (s) {
+    out := []
+    cur := ""
+    for i := 0; i < _len(s); i++ {
+        c := s.char_at(i)
+        if c == "/" {
+            out.push(cur)
+            cur = ""
+        } else {
+            cur ~= c
+        }
+    }
+    out.push(cur)
+    return out
+}
+
+// wrapper
+
+SysState :: {
+    cols: 80,
+    rows: 24,
+    raw: false,
+    sigfd: -1,
+    home: null,
+    saved_tty: null
+}
+
+sys := SysState()
+
+run :: (cmd) { return _run(cmd) }
+
+capture :: (cmd) {
     p := _pipe()
     pid := _spawn(cmd, 0, p[1], 2)
     _close(p[1])
@@ -18,8 +95,7 @@ capture := (cmd) {
     return [_wait(pid), out]
 }
 
-// Run cmd with text as its stdin; returns the exit code
-feed := (cmd, text) {
+feed :: (cmd, text) {
     p := _pipe()
     pid := _spawn(cmd, p[0], 1, 2)
     _close(p[0])
@@ -28,7 +104,6 @@ feed := (cmd, text) {
     return _wait(pid)
 }
 
-// left | right; returns right's exit code
 pipe :: (left, right) {
     p := _pipe()
     a := _spawn(left, 0, p[1], 2)
@@ -39,10 +114,206 @@ pipe :: (left, right) {
     return _wait(b)
 }
 
-// cmd > path
 redirect :: (cmd, path) {
     fd := _open(path, "w")
     code := _wait(_spawn(cmd, 0, fd, fd))
     _close(fd)
     return code
+}
+
+#method get_cwd :: () {
+    _pbuf := malloc(4096)
+    ret := _exec(SYS_GETCWD, _pbuf, 4096, 0, 0, 0, 0)
+    if ret < 0 { 
+        free(_pbuf)
+        return null 
+    }
+    cwd := _cstr(_pbuf)
+    free(_pbuf)
+    return cwd
+}
+
+#method is_dir :: (path) {
+    _sbuf := malloc(256)
+    ret := _exec(SYS_STAT, path, _sbuf, 0, 0, 0, 0)
+    if ret < 0 { 
+        free(_sbuf)
+        return false 
+    }
+    result := (_peek_n(_sbuf + 24, 4) & 61440) == 16384
+    free(_sbuf)
+    return result
+}
+
+#method list_dir :: (path) {
+    _dbuf := malloc(8192)
+    fd := _exec(SYS_OPEN, path, 589824, 0, 0, 0, 0)
+    if fd < 0 { 
+        free(_dbuf)
+        return null 
+    }
+    
+    out := []
+    while true {
+        n := _exec(SYS_GETDENTS64, fd, _dbuf, 8192, 0, 0, 0)
+        if n <= 0 { break }
+        off := 0
+        while off < n {
+            name := _cstr(_dbuf + off + 19)
+            if name != "." and name != ".." { out.push(name) }
+            off += _peek_n(_dbuf + off + 16, 2)
+        }
+    }
+    
+    _exec(SYS_CLOSE, fd, 0, 0, 0, 0, 0)
+    free(_dbuf)
+    return out
+}
+
+#method expand_path :: (path) {
+    if path == "~" { 
+        if sys.home == null {
+            sys.home = capture("printf '%s' \"$HOME\"")[1]
+        }
+        return sys.home 
+    }
+    if _has_prefix(path, "~/") { 
+        if sys.home == null {
+            sys.home = capture("printf '%s' \"$HOME\"")[1]
+        }
+        rest := ""
+        for i := 1; i < _len(path); i++ {
+            rest ~= path.char_at(i)
+        }
+        return sys.home ~ rest
+    }
+    return path
+}
+
+#method abs_dir :: (path) {
+    p := self.expand_path(path)
+    if !_has_prefix(p, "/") { p = self.get_cwd() ~ "/" ~ p }
+    
+    parts := _split_path(p)
+    clean_parts := []
+    
+    for seg in parts {
+        if seg == "" or seg == "." { continue }
+        if seg == ".." {
+            if clean_parts.len > 0 { clean_parts.pop() }
+            continue
+        }
+        clean_parts.push(seg)
+    }
+    
+    out := ""
+    for seg in clean_parts { out ~= "/" ~ seg }
+    if out == "" { return "/" }
+    return out
+}
+
+#method term_size :: (fd := 1) {
+    _wbuf := malloc(8)
+    for f in [fd, 0, 2] {
+        if _exec(SYS_IOCTL, f, TIOCGWINSZ, _wbuf, 0, 0, 0) >= 0 {
+            cols := _peek_n(_wbuf + 2, 2)
+            if cols > 0 {
+                sys.cols = cols
+                sys.rows = _peek_n(_wbuf, 2)
+                break
+            }
+        }
+    }
+    free(_wbuf)
+    return [sys.cols, sys.rows]
+}
+
+#method tty_raw :: (fd := 0) {
+    _tio := malloc(64)
+    
+    // Use sys.raw instead of self.raw!
+    if !sys.raw {
+        sys.saved_tty = malloc(64)
+        if _exec(SYS_IOCTL, fd, TCGETS, sys.saved_tty, 0, 0, 0) < 0 { 
+            free(_tio)
+            free(sys.saved_tty)
+            sys.saved_tty = null
+            return false 
+        }
+        sys.raw = true
+    }
+    
+    _memcpy(_tio, sys.saved_tty, 64)
+    iflag := _peek_n(_tio, 4)
+    cflag := _peek_n(_tio + 8, 4)
+    lflag := _peek_n(_tio + 12, 4)
+    
+    _poke_n(_tio, iflag - (iflag & 1330), 4)
+    _poke_n(_tio + 8, cflag + 48 - (cflag & 48), 4)
+    _poke_n(_tio + 12, lflag - (lflag & 32779), 4)
+    
+    _poke(_tio + 23, u8(1))
+    _poke(_tio + 22, u8(0))
+    
+    ret := _exec(SYS_IOCTL, fd, TCSETS + 1, _tio, 0, 0, 0) >= 0
+    free(_tio)
+    return ret
+}
+
+#method tty_restore :: (fd := 0) {
+    if !sys.raw { return true }
+    sys.raw = false
+    
+    if sys.saved_tty == null { return false }
+    
+    ret := _exec(SYS_IOCTL, fd, TCSETS + 1, sys.saved_tty, 0, 0, 0) >= 0
+    
+    free(sys.saved_tty)
+    sys.saved_tty = null
+    
+    return ret
+}
+
+#method sigwinch_init :: () {
+    if sys.sigfd >= 0 { return true }
+    _mask := malloc(8)
+    if _mask == null { return false }
+
+    _poke_n(_mask, 134217728, 8)
+    if _exec(SYS_RT_SIGPROCMASK, 0, _mask, 0, 8, 0, 0) < 0 { 
+        free(_mask)
+        return false 
+    }
+    
+    fd := _exec(SYS_SIGNALFD4, -1, _mask, 8, 526336, 0, 0)
+    free(_mask)
+    if fd < 0 { return false }
+    sys.sigfd = fd
+    return true
+}
+
+#method sigwinch_poll :: () {
+    if sys.sigfd < 0 { return false }
+    _sibuf := malloc(128)
+    if _sibuf == null { return false }
+
+    got := false
+    while _exec(SYS_READ, sys.sigfd, _sibuf, 128, 0, 0, 0) > 0 { got = true }
+    free(_sibuf)
+    
+    if got {
+        sys.term_size()
+    }
+    return got
+}
+
+#method sigwinch_close :: () {
+    if sys.sigfd < 0 { return }
+    _mask := malloc(8)
+    if _mask == null { return }
+
+    _exec(SYS_CLOSE, sys.sigfd, 0, 0, 0, 0, 0)
+    _exec(SYS_RT_SIGPROCMASK, 1, _mask, 0, 8, 0, 0)
+    free(_mask)
+    sys.sigfd = -1
 }
