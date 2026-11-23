@@ -57,7 +57,13 @@ static void pt_collect_refs(AstNode *expr, ProcNode *owner) {
             break;
 
         case FIELD_ACCESS:
-            if (!expr->object) { pt_add_dep(owner, expr->field, expr->len); break; }
+            if (!expr->object) {
+                pt_add_dep(owner, expr->field, expr->len);
+                break;
+            }
+            if (expr->object->type == FIELD_ACCESS && expr->object->object) {
+                pt_add_dep(owner, expr->object->field, expr->object->len);
+            }
             pt_collect_refs(expr->object, owner);
             break;
 
@@ -131,6 +137,7 @@ static bool pt_toposort(AstNode ***out_order, int *out_count) {
     int order_count = 0;
     bool clean = true;
     for (int i = 0; i < pt_node_count; i++) {
+        if (pt_nodes[i].decl->type == IMPORT) continue;
         if (!pt_visit(&pt_nodes[i], order, &order_count)) clean = false;
     }
     *out_order = order;

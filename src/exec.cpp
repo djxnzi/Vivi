@@ -771,6 +771,7 @@ static AstNode* exec_stmt(AstNode *node) {
         }
 
         case METHOD: {
+            if (node->is_proctime) return nullptr;
             EnvEntry *existing = env_find_local(global_env, node->name, node->len);
             if (existing) {
                 if (find_method(node->name, node->len)) {

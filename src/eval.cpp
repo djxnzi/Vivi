@@ -161,6 +161,23 @@ static Value eval_expr(AstNode *node) {
 
             if (node->callee->type == FIELD_ACCESS) {
                 AstNode *fa = node->callee;
+
+                Value ns;
+                if (fa->object->type == FIELD_ACCESS && fa->object->object
+                    && env_get(global_env, fa->object->field, fa->object->len, &ns)) {
+                    ObjFn *ns_fn = find_method(fa->field, fa->len, &ns);
+                    if (ns_fn) {
+                        AstNode *recv = fa->object->object;
+                        Value self = auto_deref(recv, eval_expr(recv));
+                        Value *arg_values = nullptr;
+                        if (node->arg_count > 0) {
+                            arg_values = (Value*)arena_alloc(sizeof(Value) * node->arg_count);
+                            for (int i = 0; i < node->arg_count; i++) arg_values[i] = eval_expr(node->args[i]);
+                        }
+                        return call_method(ns_fn, recv, self, arg_values, node->arg_count, node->line, node->col);
+                    }
+                }
+
                 Value obj = eval_expr(fa->object);
 
                 if (obj.type == ValueType::Frame) {
@@ -544,6 +561,16 @@ static Value eval_expr(AstNode *node) {
         case FIELD_ACCESS: {
             if (!node->object) return eval_expected(node, nullptr);
 
+            Value ns;
+            if (node->object->type == FIELD_ACCESS && node->object->object
+                && env_get(global_env, node->object->field, node->object->len, &ns)) {
+                ObjFn *ns_fn = find_method(node->field, node->len, &ns);
+                if (ns_fn) {
+                    AstNode *recv = node->object->object;
+                    return call_method(ns_fn, recv, auto_deref(recv, eval_expr(recv)), nullptr, 0, node->line, node->col);
+                }
+            }
+
             Value obj = auto_deref(node->object, eval_expr(node->object));
             Value *slot = struct_field_slot(obj, node->field, node->len);
             if (slot) return *slot;
@@ -822,7 +849,8 @@ static Value call_method(ObjFn *fn, AstNode *receiver_expr, Value obj, Value *ar
     Value out_self = obj;
     Value result = call_function(fn, arg_values, arg_count, &obj, line, col, &out_self);
     if (receiver_expr->type == IDENT) {
-        env_assign(global_env, receiver_expr->name, receiver_expr->len, out_self);
+        EnvEntry *e = env_find(global_env, receiver_expr->name, receiver_expr->len);
+        if (e && !e->is_const) env_assign(global_env, receiver_expr->name, receiver_expr->len, out_self);
     }
     return result;
 }

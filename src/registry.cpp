@@ -55,7 +55,7 @@ static void unregister_method(const char *name, int len) {
     }
 }
 
-static ObjFn* find_method(const char *name, int len) {
+static ObjFn* find_method(const char *name, int len, Value *ns) {
     bool registered = false;
 
     for (int i = 0; i < method_decl_count; i++) {
@@ -66,6 +66,11 @@ static ObjFn* find_method(const char *name, int len) {
     }
 
     if (!registered) return nullptr;
+
+    if (ns) {
+        Value *slot = struct_field_slot(*ns, name, len);
+        return slot && slot->type == ValueType::Fn ? (ObjFn*)slot->as.obj : nullptr;
+    }
 
     Value v;
     if (env_get(global_env, name, len, &v) && v.type == ValueType::Fn) {

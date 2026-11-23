@@ -355,7 +355,10 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
 
         case IMPORT: {
             if (!checking) {
-                if (stmt->alias) break;
+                if (stmt->alias) {
+                    pt_add_node(stmt->alias, stmt->alias_len, owner_try ? owner_try : stmt, nullptr);
+                    break;
+                }
                 std::string path(stmt->path, (size_t)stmt->path_len);
                 std::string file_path = resolve_import(path);
                 if (pt_import_done.count(file_path)) break;
@@ -385,7 +388,11 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
         }
 
         case METHOD:
-            if (checking) pt_declare_name(stmt->name, stmt->len);
+            if (checking) {
+                pt_declare_name(stmt->name, stmt->len);
+            } else if (!stmt->is_mut) {
+                pt_add_node(stmt->name, stmt->len, owner_try ? owner_try : stmt, nullptr);
+            }
             break;
 
         case STRUCT_DECL:
@@ -478,7 +485,7 @@ static void run_proctime(AstNode *program) {
         current_file = sf;
         program_source = ss;
         bool keep;
-        if (order[i]->type == TRY_STMT) {
+        if (order[i]->type == TRY_STMT || order[i]->type == IMPORT) {
             keep = error_count == errors_before;
             if (keep) order[i]->is_proctime = true;
         } else {

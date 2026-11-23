@@ -7,7 +7,7 @@ static void find_keywords(const char *src);
 
 static void register_method(const char *name, int len);
 static void unregister_method(const char *name, int len);
-static ObjFn* find_method(const char *name, int len);
+static ObjFn* find_method(const char *name, int len, Value *ns = nullptr);
 struct MethodName { const char *name; int len; };
 static MethodName *method_decls = nullptr;
 static int method_decl_count = 0, method_decl_capacity = 0;
