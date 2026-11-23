@@ -92,6 +92,28 @@ static bool values_equal(Value a, Value b) {
         case ValueType::Bool:  return a.as.b == b.as.b;
         case ValueType::Int:   return a.as.i == b.as.i;
         case ValueType::Float: return a.as.f == b.as.f;
+
+        case ValueType::Array: {
+            ObjArray *x = (ObjArray*)a.as.obj, *y = (ObjArray*)b.as.obj;
+            if (x->count != y->count) return false;
+            for (int i = 0; i < x->count; i++) {
+                if (!values_equal(x->keys[i], y->keys[i]) || !values_equal(x->items[i], y->items[i])) return false;
+            }
+            return true;
+        }
+        case ValueType::Struct: {
+            ObjStruct *x = (ObjStruct*)a.as.obj, *y = (ObjStruct*)b.as.obj;
+            if (x->ns_env || y->ns_env) return x == y;
+            if (x->count != y->count || x->type_name_len != y->type_name_len) return false;
+            if (x->type_name_len && strncmp(x->type_name, y->type_name, x->type_name_len) != 0) return false;
+            for (int i = 0; i < x->count; i++) {
+                int j = 0;
+                while (j < y->count && (y->fields[j].len != x->fields[i].len || strncmp(y->fields[j].name, x->fields[i].name, x->fields[i].len) != 0)) j++;
+                if (j == y->count || !values_equal(x->fields[i].value, y->fields[j].value)) return false;
+            }
+            return true;
+        }
+
         default: return false;
     }
 }

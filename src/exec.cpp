@@ -638,6 +638,15 @@ static AstNode* exec_stmt(AstNode *node) {
                         env_define(global_env, node->val_name, node->val_len, *struct_field_slot(iterable, s->fields[i].name, s->fields[i].len), false);
                     }
                     AstNode *signal = exec_stmt(node->body);
+
+                    Value v;
+                    if (!s->ns_env && i < s->count && !(node->iterable->type == IDENT && names_struct(node->iterable->name, node->iterable->len)) &&
+                        env_get(global_env, single ? node->key_name : node->val_name, single ? node->key_len : node->val_len, &v)) {
+                        v = value_copy(v, s->obj.refcount);
+                        value_drop(s->fields[i].value);
+                        s->fields[i].value = v;
+                    }
+
                     if (signal) {
                         if (signal->type == BREAK_STMT) break;
                         if (signal->type == CONTINUE_STMT) continue;
@@ -692,6 +701,14 @@ static AstNode* exec_stmt(AstNode *node) {
                     env_define(global_env, node->val_name, node->val_len, a->items[i], false);
                 }
                 AstNode *signal = exec_stmt(node->body);
+
+                Value v;
+                if (i < a->count && env_get(global_env, single ? node->key_name : node->val_name, single ? node->key_len : node->val_len, &v)) {
+                    v = value_copy(v, a->obj.refcount);
+                    value_drop(a->items[i]);
+                    a->items[i] = v;
+                }
+
                 if (signal) {
                     if (signal->type == BREAK_STMT) break;
                     if (signal->type == CONTINUE_STMT) continue;
