@@ -1,5 +1,5 @@
 #import "core/strings"
-#import "core/strings" as sys // the thing i check under my bed for at night.
+#import "core/sys" as sys // the thing i check under my bed for at night.
 #import "core/io"
 
 // helper thing to make output readable
