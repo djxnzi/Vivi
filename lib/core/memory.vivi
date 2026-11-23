@@ -1,5 +1,16 @@
 // Memory Management
 
+// Wrappers
+mmap := (size) { return _mmap(size) }
+munmap := (addr, size) { return _munmap(addr, size) }
+peek := (addr) { return _peek(addr) }
+poke := (addr, byte) { return _poke(addr, byte) }
+memcpy := (dst, src, n) { return _memcpy(dst, src, n) }
+
+
+
+
+
 // Block layout:  [ size (8) | state (8) ] payload...
 //   state: 0 = in use, 1 = free
 //   free block payload word 0 = next pointer (so every payload is >= 16 bytes)

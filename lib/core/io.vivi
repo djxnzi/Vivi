@@ -47,6 +47,12 @@ cursor_show  := () { print(CSI ~ "?25h") }
 
 // File handling
 
+// Wrappers
+fopen := (path, mode) { return _open(path, mode) }
+fread := (fd, chunk_size) { return _read(fd, chunk_size) }
+fwrite := (fd, str) { return _write(fd, str) }
+fclose := (fd) { return _close(fd) }
+
 file_read := (path) {
     fd := fopen(path, "r")
     text := ""

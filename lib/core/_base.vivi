@@ -62,17 +62,6 @@ sleep := (n) { _sleep(n) }
 get_at := (v, i) { return _get(v, i) }
 set_at := (*a, v, i) { return _set(a*, v, i) }
 
-fopen := (path, mode) { return _open(path, mode) }
-fread := (fd, chunk_size) { return _read(fd, chunk_size) }
-fwrite := (fd, str) { return _write(fd, str) }
-fclose := (fd) { return _close(fd) }
-
-mmap := (size) { return _mmap(size) }
-munmap := (addr, size) { return _munmap(addr, size) }
-peek := (addr) { return _peek(addr) }
-poke := (addr, byte) { return _poke(addr, byte) }
-memcpy := (dst, src, n) { return _memcpy(dst, src, n) }
-
 
 
 
