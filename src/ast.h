@@ -194,6 +194,7 @@ struct ObjStruct {
     int type_name_len;
     StructField *fields;
     int count, capacity;
+    Env *ns_env;
 };
 
 struct ObjFn;

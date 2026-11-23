@@ -92,6 +92,17 @@ string substring := (string str, i32 start := null, i32 end := null) {
     return result
 }
 
+i32 hash := (string v) {
+    h := 0
+    n := _len(v)
+    i := 0
+    while i < n {
+        h = ((h << 5) ^ (h >> 2)) ^ _get(v, i)
+        i += 1
+    }
+    return h
+}
+
 array split := (string str, string delimiter := null) {
     if (str.len() == 0) panic("Cannot split an empty string!")
 

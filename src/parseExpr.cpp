@@ -111,7 +111,7 @@ static AstNode* parse_postfix(Parser *p) {
             int idx_count;
             AstNode **idx_items = ast_list_finish(&indices, &idx_count);
             expr = make_index(expr, idx_items, idx_count, line, col);
-        } else if (match(p, TOK_DOT)) {
+        } else if (!p->current.preceded_nl && match(p, TOK_DOT)) {
             expect(p, TOK_IDENT, "expected field name after '.'");
             expr = make_field_access(expr, p->previous.start, p->previous.len, line, col);
         } else if (match(p, TOK_PLUSPLUS)) {

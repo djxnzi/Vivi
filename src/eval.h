@@ -9,7 +9,7 @@ static Value assign_op_eval(TokenType op, Value old, Value rhs);
 static Value auto_deref(AstNode *obj_node, Value obj);
 static Value eval_expr(AstNode *node);
 static Value eval_block_as_expr(AstNode *block);
-static Value selector_search(AstNode *expr);
+static Value* selector_search(AstNode *expr);
 static bool is_flagged(AstNode *param);
 static Value eval_expected(AstNode *expr, AstNode *type);
 static Value call_function(ObjFn *fn, Value *arg_values, int arg_count, Value *self = nullptr, int call_line = 0, int call_col = 0, Value *out_self = nullptr);

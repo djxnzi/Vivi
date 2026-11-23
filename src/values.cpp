@@ -469,9 +469,10 @@ void value_print(Value v, FILE *out) {
                 if (i > 0) fprintf(out, ", ");
                 fwrite(s->fields[i].name, 1, (size_t)s->fields[i].len, out);
                 fprintf(out, ": ");
-                if (s->fields[i].value.type == ValueType::Str) fprintf(out, "\"");
-                value_print(s->fields[i].value, out);
-                if (s->fields[i].value.type == ValueType::Str) fprintf(out, "\"");
+                Value fv = *struct_field_slot(v, s->fields[i].name, s->fields[i].len);
+                if (fv.type == ValueType::Str) fprintf(out, "\"");
+                value_print(fv, out);
+                if (fv.type == ValueType::Str) fprintf(out, "\"");
             }
             fprintf(out, "}");
             break;
@@ -493,6 +494,7 @@ void value_print(Value v, FILE *out) {
             fprintf(out, "]");
             break;
         }
+        case ValueType::Fn: fprintf(out, "[fn]"); break;
         default: print_err("unprintable", (int)v.type); break;
     }
 }
@@ -573,6 +575,7 @@ static Value make_str_from_value(Value v) {
             free(buf);
             return make_str(heap, (int)size);
         }
+        case ValueType::Fn: return make_str("[fn]", 4);
         default:
             print_err("string_cast");
             return make_null();
@@ -602,6 +605,7 @@ static Value make_ext_asset(AstNode *path_expr) {
     s->obj.refcount = 0;
     s->type_name = "ext";
     s->type_name_len = 3;
+    s->ns_env = nullptr;
     s->fields = (StructField*)arena_alloc(sizeof(StructField) * 3);
     s->count = s->capacity = 3;
     s->fields[0].name = "path";   s->fields[0].len = 4; s->fields[0].value = make_str(path_copy, (int)full_str.length());

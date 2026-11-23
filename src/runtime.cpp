@@ -208,8 +208,24 @@ void Vivi::seed(unsigned int s) {
     srand(s);
 }
 
+void Vivi::restore_tty() {
+    if (!tty_saved) return;
+    tcsetattr(0, TCSANOW, &startup_tty);
+    write(0, "\x1b[?25h", 6);
+}
+
+
 void Vivi::run(int argc, char* argv[]) {
     seed((unsigned int)time(0));
+
+    if (tcgetattr(0, &startup_tty) == 0) {
+        tty_saved = true;
+        atexit([] { vivi.restore_tty(); });
+        auto on_signal = [](int sig) { vivi.restore_tty(); signal(sig, SIG_DFL); raise(sig); };
+        signal(SIGINT, on_signal);
+        signal(SIGTERM, on_signal);
+    }
+
     root_dir = fs::canonical("/proc/self/exe").parent_path().string();
     std::string scriptPath;
     const char **scriptArgs = (const char**)arena_alloc(argc * sizeof(const char*));

@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
+#include <termios.h>
 #include <cstdint>
 
 namespace fs = std::filesystem;
@@ -56,7 +57,7 @@ inline std::string default_lib_dir() {
 
 // Vivi forward decl
 struct Vivi {
-    const char* version = "0.4.3-alpha";
+    const char* version = "0.4.4-alpha";
     std::string root_dir;
     std::string lib_dir = default_lib_dir();
     const bool exit_code_debug = false;
@@ -64,6 +65,9 @@ struct Vivi {
     void sourceExec(const std::string& source, const std::string& scriptPath, const char * const *scriptArgs, int scriptArgCount);
     void run(int argc, char* argv[]);
     void seed(unsigned int s);
+    termios startup_tty;
+    bool tty_saved = false;
+    void restore_tty();
 };
 inline Vivi vivi;
 

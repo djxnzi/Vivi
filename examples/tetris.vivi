@@ -11,6 +11,7 @@
 #import "core/io"
 #import "core/sys"
 #import "core/strings"
+#import "core/memory"
 
 W := 10
 H := 20
@@ -70,7 +71,7 @@ rep := (s, n) {
 pad := (s, n) {
     out := s
     i := 0
-    while _len(out) < n {
+    while out.len < n {
         out = out ~ " "
         i = i + 1
         if i > 200 { return out }
@@ -83,16 +84,9 @@ at := (row, col) {
 }
 
 setup := () {
-    rows := 24
-    cols := 80
-    r := capture("stty size < /dev/tty")
-    if r[0] == 0 {
-        parts := split(trim(r[1]), " ")
-        if _len(parts) == 2 {
-            rows = i32(parts[0])
-            cols = i32(parts[1])
-        }
-    }
+    size := sys.term_size()
+    cols := size[0]
+    rows := size[1]
 
     // biggest scale that fits, capped
     s1 := i32((rows - 6) / H)
@@ -140,7 +134,7 @@ has := (t, r, x, y) {
         sy = ny
         k = k + 1
     }
-    return _get(SHAPES[t], sy * 4 + sx) == 35
+    return get_at(SHAPES[t], sy * 4 + sx) == 35
 }
 
 // Can piece t / rotation r sit with its 4x4 origin at (x, y)?
@@ -156,7 +150,7 @@ fits := (t, r, x, y) {
                 if bx >= W { return false }
                 if by >= H { return false }
                 if by >= 0 {
-                    if _get(board, by * W + bx) != 0 { return false }
+                    if get_at(board, by * W + bx) != 0 { return false }
                 }
             }
             cx = cx + 1
@@ -205,7 +199,7 @@ clear_lines := () {
         full := true
         x := 0
         while x < W {
-            if _get(board, y * W + x) == 0 { full = false }
+            if get_at(board, y * W + x) == 0 { full = false }
             x = x + 1
         }
         if full {
@@ -214,7 +208,7 @@ clear_lines := () {
             while yy > 0 {
                 x = 0
                 while x < W {
-                    board[yy * W + x] = _get(board, (yy - 1) * W + x)
+                    board[yy * W + x] = get_at(board, (yy - 1) * W + x)
                     x = x + 1
                 }
                 yy = yy - 1
@@ -271,7 +265,7 @@ draw := () {
         line := "│"
         x := 0
         while x < W {
-            c := _get(board, y * W + x)
+            c := get_at(board, y * W + x)
             if piece_at(x, y) { c = pt + 1 }
             if c == 0 {
                 line = line ~ EMPTY_CELL
@@ -353,13 +347,17 @@ main := () {
     nt = abs(rand()) % 7
     spawn()
 
-    // non-blocking raw input; keep signals on so Ctrl-C still works
-    _run("stty -icanon -echo min 0 time 0")
+    // raw, non-blocking input
+    sys.tty_raw(0, 0)
     cursor_hide()
     print(esc ~ "[2J")
     draw_static()
 
-    last := _timestamp()
+    ts := malloc(16)
+    _poke_n(ts, 0, 8)
+    _poke_n(ts + 8, 50000000, 8)
+
+    last := timestamp()
     start := last
     while !over {
         // read pending keys, at most MAX_KEYS per frame
@@ -370,7 +368,7 @@ main := () {
             if _len(s) == 0 {
                 going = false
             } else {
-                handle_key(_get(s, 0))
+                handle_key(get_at(s, 0))
                 dirty = true
                 n = n + 1
                 if n >= MAX_KEYS { going = false }
@@ -393,11 +391,13 @@ main := () {
             draw()
             dirty = false
         }
-        _run("sleep 0.05")
+        sleep(0.05)
     }
 
+    free(ts)
+
     draw()
-    _run("stty sane")
+    sys.tty_restore()
     cursor_show()
     print(at(TOP + 5 + H * CH, 1))
     println("GAME OVER - score " ~ string(score) ~ ", lines " ~ string(lines))

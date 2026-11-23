@@ -48,39 +48,39 @@ cursor_show  := () { print(CSI ~ "?25h") }
 // File handling
 
 file_read := (path) {
-    fd := _open(path, "r")
+    fd := fopen(path, "r")
     text := ""
-    chunk := _read(fd, 4096)
+    chunk := fread(fd, 4096)
     while chunk != null {
         text ~= chunk
-        chunk = _read(fd, 4096)
+        chunk = fread(fd, 4096)
     }
-    _close(fd)
+    fclose(fd)
     return text
 }
 
 file_create := (path) {
-    fd := _open(path, "w")
-    _write(fd, "")
-    _close(fd)
+    fd := fopen(path, "w")
+    fwrite(fd, "")
+    fclose(fd)
 }
 
 file_write := (path, text) {
-    fd := _open(path, "w")
-    _write(fd, text)
-    _close(fd)
+    fd := fopen(path, "w")
+    fwrite(fd, text)
+    fclose(fd)
 }
 
 file_append := (path, text) {
-    fd := _open(path, "a")
-    _write(fd, text)
-    _close(fd)
+    fd := fopen(path, "a")
+    fwrite(fd, text)
+    fclose(fd)
 }
 
 file_exists := (path) {
     found := true
     try {
-        _close(_open(path, "r"))
+        fclose(fopen(path, "r"))
     } catch (err) {
         found = false
     }
@@ -91,7 +91,7 @@ file_lines := (path) {
     text := file_read(path)
     out := []
     line := ""
-    for i := 0; i < _len(text); i++ {
+    for i := 0; i < text.len; i++ {
         c := text.char_at(i)
         if c == "\n" {
             out.push(line)
@@ -108,11 +108,11 @@ file_lines := (path) {
 
 read_line := () {
     line := ""
-    c := _read(0, 1)
+    c := fread(0, 1)
     while c != null {
         line ~= c
         if c == "\n" break
-        c = _read(0, 1)
+        c = fread(0, 1)
     }
     return line
 }

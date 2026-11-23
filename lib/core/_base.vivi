@@ -1,30 +1,88 @@
+int := i32
+float := f32
+
+// Casts
+
+bool := (v, mode := "") {
+    return _cast(v, "bool", mode)
+}
+i8 := (v, mode := "") {
+    return _cast(v, "i8", mode)
+}
+i16 := (v, mode := "") {
+    return _cast(v, "i16", mode)
+}
+i32 := (v, mode := "") {
+    return _cast(v, "i32", mode)
+}
+i64 := (v, mode := "") {
+    return _cast(v, "i64", mode)
+}
+u8 := (v, mode := "") {
+    return _cast(v, "u8", mode)
+}
+u16 := (v, mode := "") {
+    return _cast(v, "u16", mode)
+}
+u32 := (v, mode := "") {
+    return _cast(v, "u32", mode)
+}
+u64 := (v, mode := "") {
+    return _cast(v, "u64", mode)
+}
+f32 := (v, mode := "") {
+    return _cast(v, "f32", mode)
+}
+f64 := (v, mode := "") {
+    return _cast(v, "f64", mode)
+}
+rune := (v, mode := "") {
+    return _cast(v, "rune", mode)
+}
+string := (v, mode := "") {
+    return _cast(v, "string", mode)
+}
+// Explicit cast
+cast := (*v, type, mode := "") {
+    v* = type(v*, mode)
+    return v*
+}
+
+
+
+
+
+// Wrappers
+
+timestamp := () { return _timestamp() }
+traceback := () { return _traceback() }
+seed := (i32 n) { _seed(n) }
+rand := () { return _rand() }
+sleep := (n) { _sleep(n) }
+get_at := (v, i) { return _get(v, i) }
+set_at := (*a, v, i) { return _set(a*, v, i) }
+
+fopen := (path, mode) { return _open(path, mode) }
+fread := (fd, chunk_size) { return _read(fd, chunk_size) }
+fwrite := (fd, str) { return _write(fd, str) }
+fclose := (fd) { return _close(fd) }
+
+mmap := (size) { return _mmap(size) }
+munmap := (addr, size) { return _munmap(addr, size) }
+peek := (addr) { return _peek(addr) }
+poke := (addr, byte) { return _poke(addr, byte) }
+memcpy := (dst, src, n) { return _memcpy(dst, src, n) }
+
+
+
+
+
 // print functions
 
 // Standard file descriptors on *nix systems
-stdout := 1
-stderr := 2
-
-print := (...) {
-    fprint(stdout, args)
-}
-
-fprint := (int fd, ...) {
-    _write(fd, string(argv[0]))
-    for i := 1; i < argc; i++ {
-        _write(fd, " " ~ string(argv[i]))
-    }
-}
-
-println := (...) {
-    _write(stdout, string(argv[0]))
-    for i := 1; i < argc; i++ {
-        _write(stdout, " " ~ string(argv[i]))
-    }
-    _write(stdout, "\n")
-}
-
-printf := (string fmt, ...) {
-    fprintf(stdout, fmt, args)
+STD_DESCRIPTORS := {
+    STDOUT: 1,
+    STDERR: 2
 }
 
 fprintf := (int fd, string fmt, ...) {
@@ -96,20 +154,47 @@ fprintf := (int fd, string fmt, ...) {
     }
 }
 
-// stderr prints
+print := (...) {
+    fprint(.STDOUT, args)
+}
+
+fprint := (int fd, ...) {
+    _write(fd, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(fd, " " ~ string(argv[i]))
+    }
+}
+
+println := (...) {
+    _write(.STDOUT, string(argv[0]))
+    for i := 1; i < argc; i++ {
+        _write(.STDOUT, " " ~ string(argv[i]))
+    }
+    _write(.STDOUT, "\n")
+}
+
+printf := (string fmt, ...) {
+    fprintf(.STDOUT, fmt, args)
+}
 
 eprint := (...) {
-    fprint(stderr, args)
+    fprint(.STDERR, args)
 }
 
 eprintln := (...) {
     eprint(args)
-    _write(stderr, "\n")
+    _write(.STDERR, "\n")
 }
 
 eprintf := (string fmt, ...) {
-    fprintf(stderr, fmt, args)
+    fprintf(.STDERR, fmt, args)
 }
+
+
+
+
+
+// Exit/Panic
 
 exit := (i32 code := 0) {
     if code in [67, 69, 420, 1337] {
@@ -140,187 +225,9 @@ panic := (string str) {
     exit(134);
 }
 
-// Memory Management and such.
-// along with overflow management.
 
-_read64 := (p) {
-    v := 0
-    i := 7
-    while i >= 0 {
-        v = v * 256 + _peek(p + i)     // p must be an untyped int -> 1-byte read
-        i -= 1
-    }
-    return v
-}
 
-_write64 := (p, v) {
-    for i := 0; i < 8; i++ {
-        _poke(p + i, u8(v % 256))      // u8() forces a 1-byte write
-        v = v / 256
-    }
-}
 
-_heap_ptr := 0
-_heap_end := 0
-
-_BINS := 64                            // small size classes payload up to 1008 bytes (16-byte steps) a noice multiple.
-_CHUNK := 1048576                      // 1 MB arena chunks
-_free_bins := []
-_bins_ready := false
-_large_free := 0                       // address-sorted list of free blocks with payload >= 1024
-
-// Block layout:  [ size (8) | state (8) ] payload...
-//   state: 0 = in use, 1 = free
-//   free block payload word 0 = next pointer (so every payload is >= 16 bytes)
-
-// Insert a free large block into the sorted list, merging with
-// physically adjacent free neighbours (this is what is unleaking big blocks).
-_insert_large := (p) {
-    size := _read64(p - 16)
-    prev := 0
-    cur := _large_free
-    while cur != 0 and cur < p {
-        prev = cur
-        cur = _read64(cur)
-    }
-
-    // merge with the next block if it starts right where we end
-    if cur != 0 and p + size == cur - 16 {
-        size = size + 16 + _read64(cur - 16)
-        cur = _read64(cur)
-    }
-
-    // merge with the previous block if we start right where it ends
-    if prev != 0 and prev + _read64(prev - 16) == p - 16 {
-        _write64(prev - 16, _read64(prev - 16) + 16 + size)
-        _write64(prev, cur)
-        return
-    }
-
-    _write64(p - 16, size)
-    _write64(p - 8, 1)
-    _write64(p, cur)
-    if prev == 0 {
-        _large_free = p
-    } else {
-        _write64(prev, p)
-    }
-}
-
-// put any free block payload ptr p, payload size size where it belonhs.
-_release := (p, size) {
-    _write64(p - 16, size)
-    _write64(p - 8, 1)
-    bin := size / 16
-    if bin < _BINS {
-        _write64(p, _free_bins[bin])
-        _free_bins[bin] = p
-    } else {
-        _insert_large(p)
-    }
-}
-
-// First fit (whatever you whippersnappers use) search of the large list, splitting off the unused tail.
-_take_large := (size) {
-    prev := 0
-    cur := _large_free
-    while cur != 0 {
-        csize := _read64(cur - 16)
-        if csize >= size {
-            next := _read64(cur)
-            if prev == 0 {
-                _large_free = next
-            } else {
-                _write64(prev, next)
-            }
-            if csize - size >= 32 {                    // tail big enough to be its own block
-                _write64(cur - 16, size)
-                _release(cur + size + 16, csize - size - 16)
-            }
-            _write64(cur - 8, 0)                       // mark in use
-            return cur
-        }
-        prev = cur
-        cur = _read64(cur)
-    }
-    return 0
-}
-
-malloc := (size) {
-    if !_bins_ready {
-        for i := 0; i < _BINS; i++ { _set(_free_bins, i, 0) }
-        _bins_ready = true
-    }
-
-    if size < 0 { panic("malloc(): negative size") }
-    size = (size + 15) / 16 * 16
-    if size < 16 { size = 16 }         // a free block stores a next pointer in its payload,
-                                       // so a 0 byte block would overflow into the next header
-    bin := size / 16
-
-    if bin < _BINS {
-        if _free_bins[bin] != 0 {
-            q := _free_bins[bin]
-            _free_bins[bin] = _read64(q)
-            _write64(q - 8, 0)
-            return q
-        }
-    } else {
-        q := _take_large(size)
-        if q != 0 { return q }
-    }
-
-    total := size + 16
-
-    // owning mapping, leave the bump arena alone lol -Xansi
-    if total > _CHUNK {
-        p := _mmap(total)
-        if p == null { panic("malloc(): out of memory!!") }
-        _write64(p, size)
-        return p + 16
-    }
-
-    if _heap_ptr + total > _heap_end {
-        // dont throw away what's left of the old chunk
-        rem := _heap_end - _heap_ptr
-        if rem >= 32 { _release(_heap_ptr + 16, rem - 16) }
-        _heap_ptr = _mmap(_CHUNK)
-        if _heap_ptr == null { panic("malloc(): out of memory!!") }
-        _heap_end = _heap_ptr + _CHUNK
-    }
-    p := _heap_ptr
-    _heap_ptr += total
-    _write64(p, size)
-    return p + 16
-}
-
-free := (ptr) {
-    if ptr == null { return }
-    if _read64(ptr - 8) == 1 { panic("free(): double free") }
-    size := _read64(ptr - 16)
-    if size < 16 or size % 16 != 0 { panic("free(): invalid pointer or corrupted header") }
-    _release(ptr, size)
-}
-
-// memcpy was gonna be changed but i litteraly could not find a reason to change it -Xansi
-memcpy := (dst, src, n) { _memcpy(dst, src, n) }
-
-timestamp := () { return _timestamp() }
-traceback := () { return _traceback() }
-seed := (i32 n) { _seed(n) }
-rand := () { return _rand() }
-sleep := (i32 n) { _sleep(n) }
-
-i32 hash := (string v) {
-    h := 0
-    n := _len(v)
-    i := 0
-    while i < n {
-        h = ((h << 5) ^ (h >> 2)) ^ _get(v, i)
-        i += 1
-    }
-    return h
-}
 
 // Methods
 
@@ -328,18 +235,18 @@ i32 hash := (string v) {
     return _len(self)
 }
 
-#method char_at :: (i) {
+#method char_at := (i) {
     if i < 0 or i >= _len(self) {
         panic("char_at() index out of range")
     }
     return rune(_get(self, i))
 }
 
-#method push :: (v) {
+#method push := (v) {
     _set(self, _len(self), v)
 }
 
-#method pop :: () {
+#method pop := () {
     n := _len(self)
     if n == 0 { panic("Cannot pop from an empty array") }
     v := _get(self, n - 1)
@@ -347,11 +254,11 @@ i32 hash := (string v) {
     return v
 }
 
-#method empty :: () {
+#method empty := () {
     _trunc(self, 0)
 }
 
-#method add :: (i, v) {
+#method add := (i, v) {
     n := _len(self)
     j := n
     while j > i {
@@ -361,7 +268,7 @@ i32 hash := (string v) {
     _set(self, i, v)
 }
 
-#method take :: (i) {
+#method take := (i) {
     n := _len(self)
     if i < 0 or i >= n { panic("take() index out of range") }
     v := _get(self, i)
@@ -374,34 +281,35 @@ i32 hash := (string v) {
     return v
 }
 
-_is_num := (v) {
-    return v == i32 or v == f32
-}
+#method sort := () {
 
-_lower_at := (s, i) {
-    c := _get(s, i)
-    if c >= 65 and c <= 90 { return c + 32 }
-    return c
-}
-
-_text_greater := (l, r) {
-    ls := string(l)
-    rs := string(r)
-    ln := _len(ls)
-    rn := _len(rs)
-    n := ln
-    if rn < n { n = rn }
-    k := 0
-    while k < n {
-        lc := _lower_at(ls, k)
-        rc := _lower_at(rs, k)
-        if lc != rc { return lc > rc }
-        k += 1
+    _is_num := (v) {
+        return v == i32 or v == f32
     }
-    return ln > rn
-}
 
-#method sort :: () {
+    _lower_at := (s, i) {
+        c := _get(s, i)
+        if c >= 65 and c <= 90 { return c + 32 }
+        return c
+    }
+
+    _text_greater := (l, r) {
+        ls := string(l)
+        rs := string(r)
+        ln := _len(ls)
+        rn := _len(rs)
+        n := ln
+        if rn < n { n = rn }
+        k := 0
+        while k < n {
+            lc := _lower_at(ls, k)
+            rc := _lower_at(rs, k)
+            if lc != rc { return lc > rc }
+            k += 1
+        }
+        return ln > rn
+    }
+
     n := _len(self)
     c := 0
     while c < n {
@@ -435,55 +343,6 @@ _text_greater := (l, r) {
 
 
 
-// Casts
-
-bool := (v, mode := "") {
-    return _cast(v, "bool", mode)
-}
-i8 := (v, mode := "") {
-    return _cast(v, "i8", mode)
-}
-i16 := (v, mode := "") {
-    return _cast(v, "i16", mode)
-}
-i32 := (v, mode := "") {
-    return _cast(v, "i32", mode)
-}
-i64 := (v, mode := "") {
-    return _cast(v, "i64", mode)
-}
-u8 := (v, mode := "") {
-    return _cast(v, "u8", mode)
-}
-u16 := (v, mode := "") {
-    return _cast(v, "u16", mode)
-}
-u32 := (v, mode := "") {
-    return _cast(v, "u32", mode)
-}
-u64 := (v, mode := "") {
-    return _cast(v, "u64", mode)
-}
-f32 := (v, mode := "") {
-    return _cast(v, "f32", mode)
-}
-f64 := (v, mode := "") {
-    return _cast(v, "f64", mode)
-}
-rune := (v, mode := "") {
-    return _cast(v, "rune", mode)
-}
-string := (v, mode := "") {
-    return _cast(v, "string", mode)
-}
-// Explicit cast
-cast := (*v, type, mode := "") {
-    v* = type(v*, mode)
-    return v*
-}
-
-int := i32
-float := f32
 
 
 // Phrase example

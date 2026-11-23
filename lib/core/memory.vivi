@@ -1,0 +1,161 @@
+// Memory Management
+
+// Block layout:  [ size (8) | state (8) ] payload...
+//   state: 0 = in use, 1 = free
+//   free block payload word 0 = next pointer (so every payload is >= 16 bytes)
+MEMORY_DEFAULTS := {
+    HEAP_PTR: 0,
+    HEAP_END: 0,
+
+    BINS: 64,                           // small size classes payload up to 1008 bytes (16-byte steps) a noice multiple.
+    CHUNK: 1048576,                     // 1 MB arena chunks
+    FREE_BINS: [],
+    BINS_READY: false,
+    LARGE_FREE: 0                       // address-sorted list of free blocks with payload >= 1024
+}
+
+mem_read64 := (p) {
+    v := 0
+    i := 7
+    while i >= 0 {
+        v = v * 256 + peek(p + i)     // p must be an untyped int -> 1-byte read
+        i -= 1
+    }
+    return v
+}
+
+mem_write64 := (p, v) {
+    for i := 0; i < 8; i++ {
+        poke(p + i, u8(v % 256))      // u8() forces a 1-byte write
+        v = v / 256
+    }
+}
+
+// Insert a free large block into the sorted list, merging with
+// physically adjacent free neighbours (this is what is unleaking big blocks).
+mem_insert_large := (p) {
+    size := mem_read64(p - 16)
+    prev := 0
+    cur := .LARGE_FREE
+    while cur != 0 and cur < p {
+        prev = cur
+        cur = mem_read64(cur)
+    }
+
+    // merge with the next block if it starts right where we end
+    if cur != 0 and p + size == cur - 16 {
+        size = size + 16 + mem_read64(cur - 16)
+        cur = mem_read64(cur)
+    }
+
+    // merge with the previous block if we start right where it ends
+    if prev != 0 and prev + mem_read64(prev - 16) == p - 16 {
+        mem_write64(prev - 16, mem_read64(prev - 16) + 16 + size)
+        mem_write64(prev, cur)
+        return
+    }
+
+    mem_write64(p - 16, size)
+    mem_write64(p - 8, 1)
+    mem_write64(p, cur)
+    if prev == 0 {
+        .LARGE_FREE = p
+    } else {
+        mem_write64(prev, p)
+    }
+}
+
+// put any free block payload ptr p, payload size size where it belonhs.
+mem_release := (p, size) {
+    mem_write64(p - 16, size)
+    mem_write64(p - 8, 1)
+    bin := size / 16
+    if bin < .BINS {
+        mem_write64(p, .FREE_BINS[bin])
+        .FREE_BINS[bin] = p
+    } else {
+        mem_insert_large(p)
+    }
+}
+
+// First fit (whatever you whippersnappers use) search of the large list, splitting off the unused tail.
+mem_take_large := (size) {
+    prev := 0
+    cur := .LARGE_FREE
+    while cur != 0 {
+        csize := mem_read64(cur - 16)
+        if csize >= size {
+            next := mem_read64(cur)
+            if prev == 0 {
+                .LARGE_FREE = next
+            } else {
+                mem_write64(prev, next)
+            }
+            if csize - size >= 32 {                    // tail big enough to be its own block
+                mem_write64(cur - 16, size)
+                mem_release(cur + size + 16, csize - size - 16)
+            }
+            mem_write64(cur - 8, 0)                       // mark in use
+            return cur
+        }
+        prev = cur
+        cur = mem_read64(cur)
+    }
+    return 0
+}
+
+malloc := (size) {
+    if !.BINS_READY {
+        for i := 0; i < .BINS; i++ { set_at(.FREE_BINS, i, 0) }
+        .BINS_READY = true
+    }
+
+    if size < 0 { panic("malloc(): negative size") }
+    size = (size + 15) / 16 * 16
+    if size < 16 { size = 16 }         // a free block stores a next pointer in its payload,
+                                       // so a 0 byte block would overflow into the next header
+    bin := size / 16
+
+    if bin < .BINS {
+        if .FREE_BINS[bin] != 0 {
+            q := .FREE_BINS[bin]
+            .FREE_BINS[bin] = mem_read64(q)
+            mem_write64(q - 8, 0)
+            return q
+        }
+    } else {
+        q := mem_take_large(size)
+        if q != 0 { return q }
+    }
+
+    total := size + 16
+
+    // owning mapping, leave the bump arena alone lol -Xansi
+    if total > .CHUNK {
+        p := mmap(total)
+        if p == null { panic("malloc(): out of memory!!") }
+        mem_write64(p, size)
+        return p + 16
+    }
+
+    if .HEAP_PTR + total > .HEAP_END {
+        // dont throw away what's left of the old chunk
+        rem := .HEAP_END - .HEAP_PTR
+        if rem >= 32 { mem_release(.HEAP_PTR + 16, rem - 16) }
+        .HEAP_PTR = mmap(.CHUNK)
+        if .HEAP_PTR == null { panic("malloc(): out of memory!!") }
+        .HEAP_END = .HEAP_PTR + .CHUNK
+    }
+    p := .HEAP_PTR
+    .HEAP_PTR += total
+    mem_write64(p, size)
+    return p + 16
+}
+
+free := (ptr) {
+    if ptr == null { return }
+    if mem_read64(ptr - 8) == 1 { panic("free(): double free") }
+    size := mem_read64(ptr - 16)
+    if size < 16 or size % 16 != 0 { panic("free(): invalid pointer or corrupted header") }
+    mem_release(ptr, size)
+}

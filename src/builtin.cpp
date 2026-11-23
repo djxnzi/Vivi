@@ -331,7 +331,7 @@ static Value builtin_get(ObjFn *fn, Value *args) {
         case ValueType::Struct: {
             ObjStruct *object = (ObjStruct*)args[0].as.obj;
             if (idx < 0 || idx >= object->count) return builtin_error(fn);
-            return object->fields[idx].value;
+            return *struct_field_slot(args[0], object->fields[idx].name, object->fields[idx].len);
         }
         case ValueType::Str:
         case ValueType::Rune: {
@@ -441,6 +441,16 @@ static Value builtin_memcpy(ObjFn *fn, Value *args) {
 }
 
 static Value builtin_sleep(ObjFn *fn, Value *args) {
-    if (args[0].type != ValueType::Int || args[0].as.i < 0) return builtin_error(fn);
-    return make_int(sleep((unsigned int)args[0].as.i));
+    if (!is_numeric(args[0])) {
+        return builtin_error(fn);
+    }
+    double secs = args[0].type == ValueType::Float ? args[0].as.f : (double)args[0].as.i;
+    if (secs < 0) {
+        return builtin_error(fn);
+    }
+    struct timespec ts = {
+        (time_t)secs,
+        (long)((secs - (time_t)secs) * 1e9)
+    };
+    return make_int(nanosleep(&ts, nullptr));
 }

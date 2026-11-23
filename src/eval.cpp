@@ -1,6 +1,11 @@
 static Value* struct_field_slot(Value obj, const char *name, int len) {
     if (obj.type != ValueType::Struct) return nullptr;
     ObjStruct *s = (ObjStruct*)obj.as.obj;
+    if (s->ns_env) {
+        EnvEntry *e = env_find_local(s->ns_env, name, len);
+        if (!e) return nullptr;
+        return e->static_box ? &((ObjVar*)e->static_box)->value : &e->value;
+    }
     for (int i = 0; i < s->count; i++) {
         if (s->fields[i].len == len && strncmp(s->fields[i].name, name, len) == 0) return &s->fields[i].value;
     }
@@ -33,8 +38,11 @@ static Value* resolve_place(AstNode *node, bool create, bool *fresh) {
         }
 
         case FIELD_ACCESS: {
+            if (!node->object) return selector_search(node);
             Value obj = auto_deref(node->object, eval_expr(node->object));
             if (obj.type != ValueType::Struct) { print_err("field_assignment"); return nullptr; }
+            EnvEntry *ns_entry = ((ObjStruct*)obj.as.obj)->ns_env ? env_find_local(((ObjStruct*)obj.as.obj)->ns_env, node->field, node->len) : nullptr;
+            if (ns_entry && ns_entry->is_const) { print_err("immut_redecl", node->len, node->field); return nullptr; }
             Value *slot = struct_field_slot(obj, node->field, node->len);
             if (!slot) print_err("no_field", node->len, node->field);
             return slot;
@@ -141,6 +149,7 @@ static Value eval_expr(AstNode *node) {
                     s->obj.refcount = 0;
                     s->type_name = struct_decl->name;
                     s->type_name_len = struct_decl->len;
+                    s->ns_env = nullptr;
                     int field_count = struct_decl->field_count;
                     s->fields = field_count ? (StructField*)arena_alloc(sizeof(StructField) * field_count) : nullptr;
                     s->count = s->capacity = field_count;
@@ -278,7 +287,7 @@ static Value eval_expr(AstNode *node) {
                     ptype = shape.params[i];
                 }
 
-                if (arg->type == IDENT && ptype && ptype->type == UNARY && ptype->op == TOK_STAR) {
+                if ((arg->type == IDENT || arg->type == FIELD_ACCESS || arg->type == INDEX) && ptype && ptype->type == UNARY && ptype->op == TOK_STAR) {
                     Value *slot = resolve_place(arg);
                     arg_values[w++] = slot ? make_int((long)slot) : make_null();
                 } else {
@@ -534,6 +543,7 @@ static Value eval_expr(AstNode *node) {
             s->obj.refcount = 0;
             s->type_name = nullptr;
             s->type_name_len = 0;
+            s->ns_env = nullptr;
             int n = node->count;
             s->fields = n ? (StructField*)arena_alloc(sizeof(StructField) * n) : nullptr;
             s->count = s->capacity = n;
@@ -610,8 +620,8 @@ static Value eval_block_as_expr(AstNode *block) {
     return make_null();
 }
 
-static Value selector_search(AstNode *expr) {
-    Value found = make_null();
+static Value* selector_search(AstNode *expr) {
+    Value *found = nullptr;
     int matches = 0;
     for (Env *env = global_env; env; env = env->parent) {
         for (int i = 0; i < env->count; i++) {
@@ -619,13 +629,13 @@ static Value selector_search(AstNode *expr) {
             if (e->value.type != ValueType::Struct || !names_struct(e->name, e->len)) continue;
             Value *slot = struct_field_slot(e->value, expr->field, expr->len);
             if (!slot) continue;
-            found = *slot;
+            found = slot;
             matches++;
         }
     }
     if (matches == 1) return found;
     print_err(matches ? "selector_ambiguous" : "selector_variant", expr->len, expr->field);
-    return make_null();
+    return nullptr;
 }
 
 static bool is_flagged(AstNode *param) {
@@ -649,14 +659,13 @@ static Value eval_expected(AstNode *expr, AstNode *type) {
 
     current_line = expr->line;
     current_col = expr->col;
-
-    if (!type) return selector_search(expr);
+    
     Value t;
 
-    if ((type->type != IDENT && type->type != PARAM) || !env_get(global_env, type->name, type->len, &t)
+    if (!type || (type->type != IDENT && type->type != PARAM) || !env_get(global_env, type->name, type->len, &t)
         || t.type != ValueType::Struct) {
-        print_err("selector_variant", expr->len, expr->field);
-        return make_null();
+        Value *slot = selector_search(expr);
+        return slot ? *slot : make_null();
     }
     Value *slot = struct_field_slot(t, expr->field, expr->len);
     if (!slot) {
