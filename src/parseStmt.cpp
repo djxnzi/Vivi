@@ -21,6 +21,17 @@ static AstNode* parse_inner(Parser *p) {
         if (check(p, TOK_PHRASE))       return parse_phrase(p);
         if (check(p, TOK_PROCTIME))     return parse_proctime_stmt(p);
         if (check(p, TOK_METHOD))       return parse_method(p);
+        
+        if (match(p, TOK_SCOPE)) {
+            bool local = match(p, TOK_LOCAL);
+            if (!local) expect(p, TOK_IDENT, "expected 'local' or 'global' after '#scope'");
+            if (!local && (p->previous.len != 6 || strncmp(p->previous.start, "global", 6) != 0))
+                parser_error(p, "expected 'local' or 'global' after '#scope'");
+            AstNode *node = parse_block(p);
+            node->type = SCOPE;
+            node->is_local = local;
+            return node;
+        }
 
         if (match(p, TOK_FLAGS)) {
             AstNode *node = parse_decl(p);

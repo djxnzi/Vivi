@@ -27,7 +27,7 @@ static ImportUnit* load_import_unit(const std::string &path, const std::string &
         ast_list_init(&stmts);
         for (auto &f : files) ast_list_push(&stmts, f.second);
         ImportUnit &u = import_units[file_path];
-        u = { make_program(&stmts, current_line, current_col), current_file, program_source };
+        u = { make_program(&stmts, current_line, current_col), current_file, program_source, nullptr, nullptr };
         return &u;
     }
 
@@ -60,12 +60,12 @@ static ImportUnit* load_import_unit(const std::string &path, const std::string &
     program_source = saved_source;
 
     if (bad) {
-        import_units[file_path] = { nullptr, heap_path, heap_source };
+        import_units[file_path] = { nullptr, heap_path, heap_source, nullptr, nullptr };
         return nullptr;
     }
 
     ImportUnit &u = import_units[file_path];
-    u = { prog, heap_path, heap_source };
+    u = { prog, heap_path, heap_source, nullptr, nullptr };
     return &u;
 }
 
@@ -90,14 +90,64 @@ static AstNode* exec_stmt(AstNode *node) {
             if (!should_namespace) {
                 ImportUnit *u = load_import_unit(path, file_path, true);
                 if (!u) return nullptr;
-                if (u->program->is_proctime) return nullptr;
+                if (u->program->is_proctime) {
+                    Env *hidden = u->hidden;
+                    for (Env *e = global_env; e && hidden; e = e->parent) {
+                        if (e == hidden) hidden = nullptr;
+                        for (int i = 0; hidden && i < e->use_count; i++)
+                            if (e->uses[i] == hidden) hidden = nullptr;
+                    }
+                    if (!hidden) return nullptr;
+                    if (global_env != hidden->parent) {
+                        global_env->uses = (Env**)grow_array(global_env->uses, global_env->use_count, &global_env->use_capacity, sizeof(Env*), 4);
+                        global_env->uses[global_env->use_count++] = hidden;
+                        return nullptr;
+                    }
+                    for (int i = 0; i < hidden->count; i++) {
+                        EnvEntry *e = &hidden->entries[i];
+                        if (env_find_local(global_env, e->name, e->len)) {
+                            print_err(e->is_const ? "immut_redecl" : "mut_redecl", e->len, e->name);
+                            continue;
+                        }
+                        global_env->entries = (EnvEntry*)grow_array(global_env->entries, global_env->count, &global_env->capacity, sizeof(EnvEntry), 8);
+                        global_env->entries[global_env->count++] = *e;
+                    }
+                    hidden->count = 0;
+                    u->hidden = nullptr;
+                    return nullptr;
+                }
                 u->program->is_proctime = true;
+                if (!u->env) {
+                    Env *home = global_env;
+                    if (scope_env && global_env == scope_env) {
+                        home = u->hidden = env_new(scope_env->parent);
+                        scope_env->uses = (Env**)grow_array(scope_env->uses, scope_env->use_count, &scope_env->use_capacity, sizeof(Env*), 4);
+                        scope_env->uses[scope_env->use_count++] = home;
+                    }
+                    u->env = env_new(home);
+                }
+                Env *saved_env = global_env, *saved_scope = scope_env;
                 const char *saved_file = current_file;
                 const char *saved_source = program_source;
+                global_env = u->env->parent;
+                scope_env = u->env;
+                global_env->uses = (Env**)grow_array(global_env->uses, global_env->use_count, &global_env->use_capacity, sizeof(Env*), 4);
+                global_env->uses[global_env->use_count++] = u->env;
                 current_file = u->path;
                 program_source = u->source;
-                for (int i = 0; i < u->program->stmt_count; i++)
+                for (int i = 0; i < u->program->stmt_count; i++) {
                     exec_stmt(u->program->stmts[i]);
+                }
+
+                for (int k = 0; k < global_env->use_count; k++) {
+                    if (global_env->uses[k] == u->env) {
+                        global_env->uses[k] = global_env->uses[--global_env->use_count];
+                        break;
+                    }
+                }
+
+                global_env = saved_env;
+                scope_env = saved_scope;
                 current_file = saved_file;
                 program_source = saved_source;
                 return nullptr;
@@ -148,10 +198,25 @@ static AstNode* exec_stmt(AstNode *node) {
                 }
 
                 global_env = module_env;
+                Env *saved_scope = scope_env;
+                scope_env = env_new(module_env);
+
+                module_env->uses = (Env**)grow_array(module_env->uses, module_env->use_count, &module_env->use_capacity, sizeof(Env*), 4);
+                module_env->uses[module_env->use_count++] = scope_env;
+
                 for (int i = 0; i < import_program->stmt_count; i++) {
                     exec_stmt(import_program->stmts[i]);
                 }
+
+                for (int k = 0; k < module_env->use_count; k++) {
+                    if (module_env->uses[k] == scope_env) {
+                        module_env->uses[k] = module_env->uses[--module_env->use_count];
+                        break;
+                    }
+                }
+
                 global_env = saved;
+                scope_env = saved_scope;
             }
 
             global_env = module_env;
@@ -447,6 +512,16 @@ static AstNode* exec_stmt(AstNode *node) {
             env->count = write;
 
             return result;
+        }
+
+        case SCOPE: {
+            if (node->is_proctime) return nullptr;
+            Env *saved = global_env;
+            if (node->is_local && scope_env) global_env = scope_env;
+            AstNode *signal = nullptr;
+            for (int i = 0; i < node->stmt_count && !signal; i++) signal = exec_stmt(node->stmts[i]);
+            global_env = saved;
+            return signal;
         }
 
         case TYPE_BLOCK: {
@@ -776,7 +851,7 @@ static AstNode* exec_stmt(AstNode *node) {
             fn->is_native = false;
             fn->obj.refcount = 0;
             fn->decl = node;
-            fn->closure = global_env;
+            fn->closure = (scope_env && !global_env->caller) ? scope_env : global_env;
             fn->file = current_file;
             fn->source = program_source;
             Value v; v.type = ValueType::Fn; v.as.obj = (Obj*)fn;
@@ -804,7 +879,7 @@ static AstNode* exec_stmt(AstNode *node) {
             fn->obj.refcount = 0;
             fn->is_native = false;
             fn->decl = node;
-            fn->closure = global_env;
+            fn->closure = (scope_env && !global_env->caller) ? scope_env : global_env;
             fn->file = current_file;
             fn->source = program_source;
             Value v; v.type = ValueType::Fn; v.as.obj = (Obj*)fn;
@@ -821,6 +896,7 @@ static AstNode* exec_stmt(AstNode *node) {
         case TRY_STMT: {
             if (node->is_proctime) return nullptr;
             Env *saved_env = global_env;
+            Env *saved_scope = scope_env;
             int saved_loop_depth = loop_stack_count;
             int errors_before = error_count;
             int env_count_before = global_env->count;
@@ -839,6 +915,7 @@ static AstNode* exec_stmt(AstNode *node) {
             if (caught || error_count > errors_before) {
                 error_count = errors_before;
                 global_env = saved_env;
+                scope_env = saved_scope;
                 global_env->count = env_count_before;
                 global_env->defer_count = defer_count_before;
                 loop_stack_count = saved_loop_depth;

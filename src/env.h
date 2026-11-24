@@ -47,6 +47,7 @@ static void loop_stack_push(LoopFrame frame);
 
 static Env *global_env = nullptr;
 static Env *root_env = nullptr;
+static Env *scope_env = nullptr;
 
 static const size_t release = (size_t)-1;
 

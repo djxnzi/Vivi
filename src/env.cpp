@@ -7,6 +7,9 @@ static Env* env_new(Env *parent) {
     env->defers = nullptr;
     env->defer_count = 0;
     env->defer_capacity = 0;
+    env->uses = nullptr;
+    env->use_count = 0;
+    env->use_capacity = 0;
     env->caller = nullptr;
     env->call_name = nullptr;
     env->call_name_len = 0;
@@ -31,6 +34,7 @@ static EnvEntry* env_find_local(Env *env, const char *name, int len) {
 static EnvEntry* env_find(Env *env, const char *name, int len) {
     for (Env *e = env; e; e = e->parent) {
         EnvEntry *entry = env_find_local(e, name, len);
+        for (int i = 0; !entry && i < e->use_count; i++) entry = env_find_local(e->uses[i], name, len);
         if (entry) return entry;
     }
     return nullptr;
@@ -255,7 +259,9 @@ static bool env_assign(Env *env, const char *name, int len, Value value) {
     EnvEntry *e = nullptr;
 
     while (env && !(e = env_find_local(env, name, len))) {
-        env = env->parent;
+        for (int i = 0; !e && i < env->use_count; i++)
+            if ((e = env_find_local(env->uses[i], name, len))) env = env->uses[i];
+        if (!e) env = env->parent;
     }
 
     if (!e) {
@@ -287,11 +293,12 @@ static bool env_assign(Env *env, const char *name, int len, Value value) {
 }
 
 static Env* build_closure_env() {
+    Env *base = (scope_env && !global_env->caller) ? scope_env : global_env;
     if (loop_stack_count <= global_env->loop_floor) {
-        return global_env;
+        return base;
     }
 
-    Env *snap = env_new(global_env);
+    Env *snap = env_new(base);
     bool captured_any = false;
 
     for (int f = global_env->loop_floor; f < loop_stack_count; f++) {
@@ -306,9 +313,9 @@ static Env* build_closure_env() {
     }
 
     if (!captured_any) {
-        global_env->refcount--;
+        base->refcount--;
         value_release(snap, sizeof(Env));
-        return global_env;
+        return base;
     }
 
     pending_push(snap, release, epoch);

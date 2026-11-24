@@ -170,6 +170,7 @@ Token next_token(Lexer *lx) {
         if (match_word(lx, "inline"))       return make_token(lx, TOK_INLINE, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "method"))       return make_token(lx, TOK_METHOD, start, (int)(lx->cur - start), preceded_nl);
         if (match_word(lx, "flags"))        return make_token(lx, TOK_FLAGS, start, (int)(lx->cur - start), preceded_nl);
+        if (match_word(lx, "scope"))        return make_token(lx, TOK_SCOPE, start, (int)(lx->cur - start), preceded_nl);
 
         // not a directive, comment
         while (!is_at_end(lx) && peek(lx) != '\n') advance(lx);
@@ -290,7 +291,7 @@ const char *token_name(TokenType t) {
         case TOK_CONTINUE:      return "CONTINUE";
         case TOK_FALLTHROUGH:   return "FALLTHROUGH";
 
-        // Functions & program flow
+        // Functions
         case TOK_RETURN:        return "RETURN";
         case TOK_DEFER:         return "DEFER";
 
@@ -304,7 +305,7 @@ const char *token_name(TokenType t) {
         case TOK_TRY:           return "TRY";
         case TOK_CATCH:         return "CATCH";
 
-        // Preprocessor-triggered
+        // Directives
         case TOK_PROCTIME:      return "PROCTIME";
         case TOK_IMPORT:        return "IMPORT";
         case TOK_INTEROP:       return "INTEROP";
@@ -312,6 +313,7 @@ const char *token_name(TokenType t) {
         case TOK_INLINE:        return "INLINE";
         case TOK_METHOD:        return "METHOD";
         case TOK_FLAGS:         return "FLAGS";
+        case TOK_SCOPE:         return "SCOPE";
 
         // Import
         case TOK_AS:            return "AS";

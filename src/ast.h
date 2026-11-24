@@ -27,7 +27,7 @@ enum AstType {
     PROCTIME_BLOCK,
 
     // DIRECTIVES
-    IMPORT, METHOD, WORD,
+    IMPORT, METHOD, WORD, SCOPE,
 
     // Root
     PROGRAM
@@ -165,9 +165,11 @@ struct Env {
     EnvEntry *entries;
     Env *parent;
     Env *caller;
+    Env **uses;
     AstNode **defers;
     int count, capacity;
     int defer_count, defer_capacity;
+    int use_count, use_capacity;
     int call_line, call_col;
     const char *call_file, *call_source;
     const char *call_name; int call_name_len;

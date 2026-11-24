@@ -624,13 +624,16 @@ static Value* selector_search(AstNode *expr) {
     Value *found = nullptr;
     int matches = 0;
     for (Env *env = global_env; env; env = env->parent) {
-        for (int i = 0; i < env->count; i++) {
-            EnvEntry *e = &env->entries[i];
-            if (e->value.type != ValueType::Struct || !names_struct(e->name, e->len)) continue;
-            Value *slot = struct_field_slot(e->value, expr->field, expr->len);
-            if (!slot) continue;
-            found = slot;
-            matches++;
+        for (int u = -1; u < env->use_count; u++) {
+            Env *in = u < 0 ? env : env->uses[u];
+            for (int i = 0; i < in->count; i++) {
+                EnvEntry *e = &in->entries[i];
+                if (e->value.type != ValueType::Struct || !names_struct(e->name, e->len)) continue;
+                Value *slot = struct_field_slot(e->value, expr->field, expr->len);
+                if (!slot || slot == found) continue;
+                found = slot;
+                matches++;
+            }
         }
     }
     if (matches == 1) return found;

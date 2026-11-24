@@ -154,6 +154,15 @@ static void pt_declare_import(AstNode *imp) {
             case IMMUT_DECL: case MUT_DECL: case FN_DECL: case STRUCT_DECL:
                 pt_declare_name(inner->name, inner->len); break;
             case IMPORT: pt_declare_import(inner); break;
+            case SCOPE:
+                if (inner->is_local) break;
+                for (int j = 0; j < inner->stmt_count; j++) {
+                    AstNode *s = inner->stmts[j];
+                    if (s->is_proctime) continue;
+                    if (s->type == IMPORT) pt_declare_import(s);
+                    else if (s->type == IMMUT_DECL || s->type == MUT_DECL || s->type == FN_DECL || s->type == STRUCT_DECL) pt_declare_name(s->name, s->len);
+                }
+                break;
             default: break;
         }
     }
@@ -353,6 +362,21 @@ static void pt_walk_stmt(AstNode *stmt, AstNode *owner_try, bool checking) {
                 pt_walk_stmt(stmt->decls[i], owner_try, checking);
             break;
 
+        case SCOPE: {
+            auto uit = pt_node_unit.find(stmt);
+            bool unit_local = !checking && stmt->is_local && uit != pt_node_unit.end();
+            for (int i = 0; i < stmt->stmt_count; i++) {
+                AstNode *inner = stmt->stmts[i];
+                if (unit_local) {
+                    if (inner->type != IMPORT) pt_walk_stmt(inner, owner_try ? owner_try : stmt, checking);
+                    continue;
+                }
+                if (uit != pt_node_unit.end()) pt_node_unit[inner] = uit->second;
+                pt_walk_stmt(inner, owner_try, checking);
+            }
+            break;
+        }
+
         case IMPORT: {
             if (!checking) {
                 if (stmt->alias) {
@@ -477,15 +501,27 @@ static void run_proctime(AstNode *program) {
         int errors_before = error_count;
         const char *sf = current_file, *ss = program_source;
         auto uit = pt_node_unit.find(order[i]);
+        Env *saved_scope = scope_env;
         if (uit != pt_node_unit.end()) {
             current_file = uit->second->path;
             program_source = uit->second->source;
+            if (!uit->second->env) uit->second->env = env_new(global_env);
+            scope_env = uit->second->env;
+            global_env->uses = (Env**)grow_array(global_env->uses, global_env->use_count, &global_env->use_capacity, sizeof(Env*), 4);
+            global_env->uses[global_env->use_count++] = scope_env;
         }
         exec_stmt(order[i]);
+        for (int k = 0; uit != pt_node_unit.end() && k < global_env->use_count; k++) {
+            if (global_env->uses[k] == scope_env) {
+                global_env->uses[k] = global_env->uses[--global_env->use_count];
+                break;
+            }
+        }
+        scope_env = saved_scope;
         current_file = sf;
         program_source = ss;
         bool keep;
-        if (order[i]->type == TRY_STMT || order[i]->type == IMPORT) {
+        if (order[i]->type == TRY_STMT || order[i]->type == IMPORT || order[i]->type == SCOPE) {
             keep = error_count == errors_before;
             if (keep) order[i]->is_proctime = true;
         } else {
