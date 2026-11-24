@@ -1,57 +1,81 @@
-// ANSI escape codes for cleaner output!
-
-ESC := string(rune(27))
-CSI := ESC ~ "["
-
-ansi_reset := CSI ~ "0m"
-
-// wrap text in a style code, then reset
-ansi := (code, text) {
-    return CSI ~ string(code) ~ "m" ~ string(text) ~ ansi_reset
-}
-
-// foreground colors
-black   := (s) { return ansi(30, s) }
-red     := (s) { return ansi(31, s) }
-green   := (s) { return ansi(32, s) }
-yellow  := (s) { return ansi(33, s) }
-blue    := (s) { return ansi(34, s) }
-magenta := (s) { return ansi(35, s) }
-cyan    := (s) { return ansi(36, s) }
-white   := (s) { return ansi(37, s) }
-gray    := (s) { return ansi(90, s) }
-
-// background colors
-bg_red   := (s) { return ansi(41, s) }
-bg_green := (s) { return ansi(42, s) }
-bg_blue  := (s) { return ansi(44, s) }
-
-// text styles
-bold      := (s) { return ansi(1, s) }
-dim       := (s) { return ansi(2, s) }
-italic    := (s) { return ansi(3, s) }
-underline := (s) { return ansi(4, s) }
-inverse   := (s) { return ansi(7, s) }
-
-// 24-bit color
-rgb := (r, g, b, text) {
-    return CSI ~ "38;2;" ~ string(r) ~ ";" ~ string(g) ~ ";" ~ string(b) ~ "m" ~ string(text) ~ ansi_reset
-}
-
-// screen / cursor control
-clear_screen := () { print(CSI ~ "2J" ~ CSI ~ "H") }
-clear_line   := () { print(CSI ~ "2K" ~ "\r") }
-cursor_to    := (row, col) { print(CSI ~ string(row) ~ ";" ~ string(col) ~ "H") }
-cursor_hide  := () { print(CSI ~ "?25l") }
-cursor_show  := () { print(CSI ~ "?25h") }
-
-// File handling
-
 // Wrappers
+
 fopen := (path, mode) { return _open(path, mode) }
 fread := (fd, chunk_size) { return _read(fd, chunk_size) }
 fwrite := (fd, str) { return _write(fd, str) }
 fclose := (fd) { return _close(fd) }
+
+
+
+
+
+#scope local {
+
+    IO_DEFAULTS :: {
+        IO_OPEN: 2,
+        IO_CLOSE: 3,
+        IO_STAT: 4,
+        IO_GETCWD: 79,
+        IO_GETDENTS64: 217,
+    }
+
+    _cstr := (p) {
+        s := ""
+        i := 0
+        while _peek(p + i) != 0 {
+            s ~= string(rune(_peek(p + i)))
+            i++
+        }
+        return s
+    }
+
+    _has_prefix := (s, prefix) {
+        if _len(prefix) > _len(s) { return false }
+        for i := 0; i < _len(prefix); i++ {
+            if s.char_at(i) != prefix.char_at(i) { return false }
+        }
+        return true
+    }
+
+    _split_path := (s) {
+        out := []
+        cur := ""
+        for i := 0; i < _len(s); i++ {
+            c := s.char_at(i)
+            if c == "/" {
+                out.push(cur)
+                cur = ""
+            } else {
+                cur ~= c
+            }
+        }
+        out.push(cur)
+        return out
+    }
+
+    _peek_n := (p, n) {
+        v := 0
+        i := n - 1
+        while i >= 0 {
+            v = v * 256 + _peek(p + i)
+            i -= 1
+        }
+        return v
+    }
+
+    _poke_n := (p, v, n) {
+        for i := 0; i < n; i++ {
+            _poke(p + i, u8(v % 256))
+            v = v / 256
+        }
+    }
+}
+
+
+
+
+
+// File handling
 
 file_read := (path) {
     fd := fopen(path, "r")
@@ -110,6 +134,107 @@ file_lines := (path) {
     return out
 }
 
+
+
+
+
+// Dir
+
+#method get_cwd := () {
+    _pbuf := malloc(4096)
+    ret := _exec(.IO_GETCWD, _pbuf, 4096, 0, 0, 0, 0)
+    if ret < 0 { 
+        free(_pbuf)
+        return null 
+    }
+    cwd := _cstr(_pbuf)
+    free(_pbuf)
+    return cwd
+}
+
+#method is_dir := (path) {
+    _sbuf := malloc(256)
+    ret := _exec(.IO_STAT, path, _sbuf, 0, 0, 0, 0)
+    if ret < 0 { 
+        free(_sbuf)
+        return false 
+    }
+    result := (_peek_n(_sbuf + 24, 4) & 61440) == 16384
+    free(_sbuf)
+    return result
+}
+
+#method list_dir := (path) {
+    _dbuf := malloc(8192)
+    fd := _exec(.IO_OPEN, path, 589824, 0, 0, 0, 0)
+    if fd < 0 { 
+        free(_dbuf)
+        return null 
+    }
+    
+    out := []
+    while true {
+        n := _exec(.IO_GETDENTS64, fd, _dbuf, 8192, 0, 0, 0)
+        if n <= 0 { break }
+        off := 0
+        while off < n {
+            name := _cstr(_dbuf + off + 19)
+            if name != "." and name != ".." { out.push(name) }
+            off += _peek_n(_dbuf + off + 16, 2)
+        }
+    }
+    
+    _exec(.IO_CLOSE, fd, 0, 0, 0, 0, 0)
+    free(_dbuf)
+    return out
+}
+
+#method expand_path := (path) {
+    if path == "~" { 
+        if sys.home == null {
+            sys.home = capture("printf '%s' \"$HOME\"")[1]
+        }
+        return sys.home 
+    }
+    if _has_prefix(path, "~/") { 
+        if sys.home == null {
+            sys.home = capture("printf '%s' \"$HOME\"")[1]
+        }
+        rest := ""
+        for i := 1; i < _len(path); i++ {
+            rest ~= path.char_at(i)
+        }
+        return sys.home ~ rest
+    }
+    return path
+}
+
+#method abs_dir := (path) {
+    p := self.expand_path(path)
+    if !_has_prefix(p, "/") { p = self.get_cwd() ~ "/" ~ p }
+    
+    parts := _split_path(p)
+    clean_parts := []
+    
+    for seg in parts {
+        if seg == "" or seg == "." { continue }
+        if seg == ".." {
+            if clean_parts.len > 0 { clean_parts.pop() }
+            continue
+        }
+        clean_parts.push(seg)
+    }
+    
+    out := ""
+    for seg in clean_parts { out ~= "/" ~ seg }
+    if out == "" { return "/" }
+    return out
+}
+
+
+
+
+
 // stdin
 
 read_line := () {
@@ -127,3 +252,53 @@ input := (prompt) {
     print(prompt)
     return read_line()
 }
+
+
+
+
+
+// ANSI escape codes
+ESC := string(rune(27))
+CSI := ESC ~ "["
+
+ansi_reset := CSI ~ "0m"
+
+// wrap text in a style code, then reset
+ansi := (code, text) {
+    return CSI ~ string(code) ~ "m" ~ string(text) ~ ansi_reset
+}
+
+// foreground colors
+black   := (s) { return ansi(30, s) }
+red     := (s) { return ansi(31, s) }
+green   := (s) { return ansi(32, s) }
+yellow  := (s) { return ansi(33, s) }
+blue    := (s) { return ansi(34, s) }
+magenta := (s) { return ansi(35, s) }
+cyan    := (s) { return ansi(36, s) }
+white   := (s) { return ansi(37, s) }
+gray    := (s) { return ansi(90, s) }
+
+// background colors
+bg_red   := (s) { return ansi(41, s) }
+bg_green := (s) { return ansi(42, s) }
+bg_blue  := (s) { return ansi(44, s) }
+
+// text styles
+bold      := (s) { return ansi(1, s) }
+dim       := (s) { return ansi(2, s) }
+italic    := (s) { return ansi(3, s) }
+underline := (s) { return ansi(4, s) }
+inverse   := (s) { return ansi(7, s) }
+
+// 24-bit color
+rgb := (r, g, b, text) {
+    return CSI ~ "38;2;" ~ string(r) ~ ";" ~ string(g) ~ ";" ~ string(b) ~ "m" ~ string(text) ~ ansi_reset
+}
+
+// screen / cursor control
+clear_screen := () { print(CSI ~ "2J" ~ CSI ~ "H") }
+clear_line   := () { print(CSI ~ "2K" ~ "\r") }
+cursor_to    := (row, col) { print(CSI ~ string(row) ~ ";" ~ string(col) ~ "H") }
+cursor_hide  := () { print(CSI ~ "?25l") }
+cursor_show  := () { print(CSI ~ "?25h") }

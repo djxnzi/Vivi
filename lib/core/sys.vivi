@@ -9,28 +9,13 @@
 
     SYS_DEFAULTS :: {
         SYS_READ: 0,
-        SYS_OPEN: 2,
-        SYS_CLOSE: 3,
-        SYS_STAT: 4,
         SYS_RT_SIGPROCMASK: 14,
         SYS_IOCTL: 16,
-        SYS_GETCWD: 79,
-        SYS_GETDENTS64: 217,
         SYS_SIGNALFD4: 289,
 
         TCGETS: 21505,
         TCSETS: 21506,
         TIOCGWINSZ: 21523,
-    }
-    
-    _cstr := (p) {
-        s := ""
-        i := 0
-        while _peek(p + i) != 0 {
-            s ~= string(rune(_peek(p + i)))
-            i++
-        }
-        return s
     }
 
     _peek_n := (p, n) {
@@ -50,30 +35,6 @@
         }
     }
 
-    _has_prefix := (s, prefix) {
-        if _len(prefix) > _len(s) { return false }
-        for i := 0; i < _len(prefix); i++ {
-            if s.char_at(i) != prefix.char_at(i) { return false }
-        }
-        return true
-    }
-
-    _split_path := (s) {
-        out := []
-        cur := ""
-        for i := 0; i < _len(s); i++ {
-            c := s.char_at(i)
-            if c == "/" {
-                out.push(cur)
-                cur = ""
-            } else {
-                cur ~= c
-            }
-        }
-        out.push(cur)
-        return out
-    }
-
     // wrapper
 
     SysState :: {
@@ -88,6 +49,10 @@
     sys := SysState()
 
     run := (cmd) { return _run(cmd) }
+
+    i32 exec := (n, a:=0, b:=0, c:=0, d:=0, e:=0, f:=0) {
+        _exec(n, a, b, c, d, e, f)
+    }
 
     capture := (cmd) {
         p := _pipe()
@@ -129,97 +94,6 @@
         return code
     }
 
-    #method get_cwd := () {
-        _pbuf := malloc(4096)
-        ret := _exec(.SYS_GETCWD, _pbuf, 4096, 0, 0, 0, 0)
-        if ret < 0 { 
-            free(_pbuf)
-            return null 
-        }
-        cwd := _cstr(_pbuf)
-        free(_pbuf)
-        return cwd
-    }
-
-    #method is_dir := (path) {
-        _sbuf := malloc(256)
-        ret := _exec(.SYS_STAT, path, _sbuf, 0, 0, 0, 0)
-        if ret < 0 { 
-            free(_sbuf)
-            return false 
-        }
-        result := (_peek_n(_sbuf + 24, 4) & 61440) == 16384
-        free(_sbuf)
-        return result
-    }
-
-    #method list_dir := (path) {
-        _dbuf := malloc(8192)
-        fd := _exec(.SYS_OPEN, path, 589824, 0, 0, 0, 0)
-        if fd < 0 { 
-            free(_dbuf)
-            return null 
-        }
-        
-        out := []
-        while true {
-            n := _exec(.SYS_GETDENTS64, fd, _dbuf, 8192, 0, 0, 0)
-            if n <= 0 { break }
-            off := 0
-            while off < n {
-                name := _cstr(_dbuf + off + 19)
-                if name != "." and name != ".." { out.push(name) }
-                off += _peek_n(_dbuf + off + 16, 2)
-            }
-        }
-        
-        _exec(.SYS_CLOSE, fd, 0, 0, 0, 0, 0)
-        free(_dbuf)
-        return out
-    }
-
-    #method expand_path := (path) {
-        if path == "~" { 
-            if sys.home == null {
-                sys.home = capture("printf '%s' \"$HOME\"")[1]
-            }
-            return sys.home 
-        }
-        if _has_prefix(path, "~/") { 
-            if sys.home == null {
-                sys.home = capture("printf '%s' \"$HOME\"")[1]
-            }
-            rest := ""
-            for i := 1; i < _len(path); i++ {
-                rest ~= path.char_at(i)
-            }
-            return sys.home ~ rest
-        }
-        return path
-    }
-
-    #method abs_dir := (path) {
-        p := self.expand_path(path)
-        if !_has_prefix(p, "/") { p = self.get_cwd() ~ "/" ~ p }
-        
-        parts := _split_path(p)
-        clean_parts := []
-        
-        for seg in parts {
-            if seg == "" or seg == "." { continue }
-            if seg == ".." {
-                if clean_parts.len > 0 { clean_parts.pop() }
-                continue
-            }
-            clean_parts.push(seg)
-        }
-        
-        out := ""
-        for seg in clean_parts { out ~= "/" ~ seg }
-        if out == "" { return "/" }
-        return out
-    }
-
     #method term_size := (fd := 1) {
         _wbuf := malloc(8)
         for f in [fd, 0, 2] {
@@ -239,7 +113,6 @@
     #method tty_raw :: (fd := 0, vmin := 1) {
         _tio := malloc(64)
         
-        // Use sys.raw instead of self.raw!
         if !sys.raw {
             sys.saved_tty = malloc(64)
             if _exec(.SYS_IOCTL, fd, .TCGETS, sys.saved_tty, 0, 0, 0) < 0 { 
