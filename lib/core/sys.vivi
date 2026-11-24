@@ -3,6 +3,9 @@
 
 #scope local { 
     #import "core/memory"
+}
+
+#scope global {
 
     SYS_DEFAULTS :: {
         SYS_READ: 0,
@@ -81,9 +84,6 @@
         home: null,
         saved_tty: null
     }
-}
-
-#scope global {
 
     sys := SysState()
 
