@@ -11,6 +11,8 @@ fclose := (fd) { return _close(fd) }
 
 #scope local {
 
+    #import "core/sys"
+
     IO_DEFAULTS :: {
         IO_OPEN: 2,
         IO_CLOSE: 3,
@@ -51,23 +53,6 @@ fclose := (fd) { return _close(fd) }
         }
         out.push(cur)
         return out
-    }
-
-    _peek_n := (p, n) {
-        v := 0
-        i := n - 1
-        while i >= 0 {
-            v = v * 256 + _peek(p + i)
-            i -= 1
-        }
-        return v
-    }
-
-    _poke_n := (p, v, n) {
-        for i := 0; i < n; i++ {
-            _poke(p + i, u8(v % 256))
-            v = v / 256
-        }
     }
 }
 

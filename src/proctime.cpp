@@ -495,6 +495,7 @@ static void run_proctime(AstNode *program) {
 
     FILE *kept = open_memstream(&proctime_kept_buf, &proctime_kept_size);
     for (int i = 0; i < order_count; i++) {
+        if (pt_node_unit.count(order[i]) && pt_node_unit[order[i]]->program->is_proctime) continue;
         char *entry_buf = nullptr;
         size_t entry_size = 0;
         program_output = open_memstream(&entry_buf, &entry_size);
