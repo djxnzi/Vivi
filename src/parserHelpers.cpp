@@ -149,14 +149,11 @@ static bool check_fn(Parser *p) {
     if (t.type == TOK_IDENT) {
         Lexer after = tmp;
         if (next_token(&after).type == TOK_IDENT) t = next_token(&tmp);
-    }
-    if (t.preceded_nl) return false;
-    if (t.type == TOK_IDENT) {
         t = next_token(&tmp);
         if (t.type != TOK_IMMUT && t.type != TOK_MUT) return false;
         t = next_token(&tmp);
     }
-    if (t.type != TOK_LPAREN) return false;
+    if (t.type != TOK_LPAREN || t.line != p->current.line) return false;
 
     d = 0;
     do { if (t.type == TOK_LPAREN) d++; else if (t.type == TOK_RPAREN) d--;
