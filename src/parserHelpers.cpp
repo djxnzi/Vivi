@@ -150,6 +150,7 @@ static bool check_fn(Parser *p) {
         Lexer after = tmp;
         if (next_token(&after).type == TOK_IDENT) t = next_token(&tmp);
     }
+    if (t.preceded_nl) return false;
     if (t.type == TOK_IDENT) {
         t = next_token(&tmp);
         if (t.type != TOK_IMMUT && t.type != TOK_MUT) return false;

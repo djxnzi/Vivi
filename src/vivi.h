@@ -57,7 +57,7 @@ inline std::string default_lib_dir() {
 
 // Vivi forward decl
 struct Vivi {
-    const char* version = "0.4.5-alpha";
+    const char* version = "0.4.6-alpha";
     std::string root_dir;
     std::string lib_dir = default_lib_dir();
     const bool exit_code_debug = false;
